@@ -5,21 +5,93 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(qt_gui_cpp REQUIRED)
+find_package(rqt_gui_cpp REQUIRED)
+find_package(Qt5Widgets REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(rosbag2_cpp REQUIRED)
+
+set(rqt_bag_recorder_SRCS
+  src/rqt_bag_recorder.cpp
+)
+
+set(rqt_bag_recorder_HDRS
+  include/rqt_bag_recorder/rqt_bag_recorder.hpp
+)
+
+set(rqt_bag_recorder_UIS
+  resource/rqt_bag_recorder.ui
+)
+
+qt5_wrap_cpp(rqt_bag_recorder_MOCS ${rqt_bag_recorder_HDRS})
+
+qt5_wrap_ui(rqt_bag_recorder_UIS_H ${rqt_bag_recorder_UIS})
+
+
+add_library(${PROJECT_NAME} SHARED
+  ${rqt_bag_recorder_SRCS}
+  ${rqt_bag_recorder_MOCS}
+  ${rqt_bag_recorder_UIS_H}
+)
+
+target_link_libraries(${PROJECT_NAME}
+  ${rclcpp_TARGETS}
+  ${qt_gui_cpp_TARGETS}
+  ${rqt_gui_cpp_TARGETS}
+  ${rosbag2_cpp_TARGETS}
+  Qt5::Widgets
+)
+
+target_include_directories(${PROJECT_NAME} PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+)
+
+install(
+  TARGETS ${PROJECT_NAME}
+  EXPORT ${PROJECT_NAME}
+  ARCHIVE DESTINATION lib/${PROJECT_NAME}
+  LIBRARY DESTINATION lib/${PROJECT_NAME}
+  RUNTIME DESTINATION bin/${PROJECT_NAME})
+
+  install(PROGRAMS scripts/rqt_bag_recorder
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION include/${PROJECT_NAME}
+)
+
+install(FILES plugin.xml
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY resource
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY DESTINATION
+  ${DESKTOP_APP_DIR}
+)
+
+pluginlib_export_plugin_description_file(rqt_gui "plugin.xml")
+
+# Export old-style CMake variables
+ament_export_include_directories("include/${PROJECT_NAME}")
+ament_export_libraries(${PROJECT_NAME})
+
+# Export new-style CMake variables
+ament_export_targets(${PROJECT_NAME})
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
 
