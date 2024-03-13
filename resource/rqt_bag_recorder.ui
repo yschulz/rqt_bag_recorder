@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>bag_recorder</class>
- <widget class="QWidget" name="bag_recorder">
+ <class>BagRecorderWidget</class>
+ <widget class="QWidget" name="BagRecorderWidget">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -30,6 +30,13 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="test_topics_button">
+       <property name="text">
+        <string>Test Topics</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontal_spacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
@@ -45,7 +52,13 @@
     </layout>
    </item>
    <item>
-    <widget class="QTreeView" name="topic_tree"/>
+    <widget class="QTreeWidget" name="topic_tree">
+     <column>
+      <property name="text">
+       <string notr="true">1</string>
+      </property>
+     </column>
+    </widget>
    </item>
    <item>
     <layout class="QHBoxLayout" name="topic_layout">
@@ -57,7 +70,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QComboBox" name="topic_combo_ox">
+      <widget class="QComboBox" name="topics_combo_box">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
          <horstretch>0</horstretch>
