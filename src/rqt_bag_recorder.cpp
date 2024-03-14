@@ -3,12 +3,14 @@
 #include "libstatistics_collector/moving_average_statistics/types.hpp"
 
 #include <QTextStream>
+#include <QMessageBox>
 
 namespace rqt_bag_recorder{
 
 BagRecorder::BagRecorder(): 
     rqt_gui_cpp::Plugin(), 
-    widget_(nullptr){
+    widget_(nullptr),
+    out_folder_path_(""){
 
     setObjectName("BagRecorder");
 
@@ -20,6 +22,8 @@ BagRecorder::BagRecorder():
     cb_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
     executor_.add_node(node_);
+
+    writer_ = std::make_unique<rosbag2_cpp::Writer>();
 }
 
 BagRecorder::~BagRecorder(){}
@@ -52,6 +56,8 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
     connect(ui_.stop_recording, SIGNAL(pressed()), this, SLOT(onStopRecord()));
+    connect(ui_.set_output, SIGNAL(pressed()), this, SLOT(onSetOutput()));
+    connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(checkOutFile(const QString &)));
 
 }
 
@@ -67,19 +73,59 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 
 }
 
+void BagRecorder::checkOutFile(const QString &file_path){
+    if(QDir(file_path).exists()){
+        QPalette palette;
+        palette.setColor(QPalette::Base, Qt::red);
+        palette.setColor(QPalette::Text, Qt::black);
+        ui_.out_file_box->setPalette(palette);
+    }
+    else{
+        QPalette palette;
+        palette.setColor(QPalette::Base, Qt::white);
+        palette.setColor(QPalette::Text, Qt::black);
+        ui_.out_file_box->setPalette(palette);
+    }
+}
+
+void BagRecorder::onSetOutput(){
+    QString out_folder_path = QFileDialog::getSaveFileName(widget_, tr("Save File"));
+    ui_.out_file_box->setText(out_folder_path);
+    out_folder_path_ = out_folder_path.toStdString();
+}
+
 void BagRecorder::onStopRecord(){
+    writer_->close();
     recording_ = false;
 }
 
 void BagRecorder::onRecord(){
+    if(out_folder_path_.empty()){
+        QMessageBox::warning(widget_, "No folder was defined!", "Cannot record.");
+        return;
+    }
+
+    writer_->open(out_folder_path_);
     recording_ = true;
 
-    // first remove all subscriptions of deselected items
+    // first remove all subscriptions of deselected items and set status
     QTreeWidgetItemIterator it(ui_.topic_tree);
     while(*it){
         if((*it)->checkState(0) == Qt::Unchecked){
             std::string topic = (*it)->text(3).toStdString();
             subs_[topic].reset();
+
+            (*it)->setText(1, "idle");
+
+            (*it)->setBackground(1, QBrush(Qt::gray));
+        }
+        else{
+            (*it)->setText(1, "recording...");
+            QBrush recording_brush;
+            QColor brown(210, 147, 84, 1);
+            recording_brush.setColor(brown);
+            (*it)->setBackground(1, recording_brush);
+            (*it)->setBackground(1, recording_brush);
         }
         ++it;
     }
@@ -105,6 +151,13 @@ void BagRecorder::onRecord(){
 
             std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
             subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
+        }
+        else{
+            (*it)->setText(1, "Done!");
+            QBrush recording_brush;
+            QColor yellow(245, 235, 94, 1);
+            recording_brush.setColor(yellow);
+            (*it)->setBackground(1, recording_brush);
         }
 
         ++it;
@@ -180,6 +233,13 @@ void BagRecorder::addTopic(){
 
 void BagRecorder::genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type){
     n_msgs_received_[topic] += 1;
+
+    if(!recording_)
+        return;
+
+    rclcpp::Time time_stamp = node_->get_clock()->now();
+
+    writer_->write(msg, topic, type, time_stamp);
 }
 
 void BagRecorder::addRowToTable(TableRow row){

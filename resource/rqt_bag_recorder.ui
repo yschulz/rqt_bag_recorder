@@ -44,6 +44,16 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="set_output">
+       <property name="text">
+        <string>Select Output Folder</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="out_file_box"/>
+     </item>
+     <item>
       <spacer name="horizontal_spacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>

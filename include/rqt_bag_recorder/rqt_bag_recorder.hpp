@@ -38,6 +38,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onTestTopics();
         void updateTopicList();
         void addTopic();
+        void onSetOutput();
+        void checkOutFile(const QString &file_path);
 
     private:
         void addRowToTable(TableRow row);
@@ -56,6 +58,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::unordered_map<std::string, size_t> n_msgs_received_;
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
+        std::string out_folder_path_;
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;
