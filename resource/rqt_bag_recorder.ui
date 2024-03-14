@@ -37,6 +37,13 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="stop_recording">
+       <property name="text">
+        <string>Stop Recording</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontal_spacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>

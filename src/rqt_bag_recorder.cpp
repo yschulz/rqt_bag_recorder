@@ -2,13 +2,14 @@
 
 #include "libstatistics_collector/moving_average_statistics/types.hpp"
 
+#include <QTextStream>
+
 namespace rqt_bag_recorder{
 
 BagRecorder::BagRecorder(): 
     rqt_gui_cpp::Plugin(), 
-    widget_(nullptr),
-    temp_time_(0),
-    temp_period_(0, 0){
+    widget_(nullptr){
+
     setObjectName("BagRecorder");
 
     if (!rclcpp::ok()) {
@@ -16,6 +17,9 @@ BagRecorder::BagRecorder():
     }
 
     node_ = std::make_shared<rclcpp::Node>("rqt_bag_recorder");
+    cb_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+
+    executor_.add_node(node_);
 }
 
 BagRecorder::~BagRecorder(){}
@@ -45,8 +49,9 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.topic_tree->setColumnWidth(2, 350);
 
 
-    connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopic()));
+    connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
+    connect(ui_.stop_recording, SIGNAL(pressed()), this, SLOT(onStopRecord()));
 
 }
 
@@ -62,51 +67,78 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 
 }
 
-void BagRecorder::onRecord(){
+void BagRecorder::onStopRecord(){
+    recording_ = false;
+}
 
+void BagRecorder::onRecord(){
+    recording_ = true;
+
+    // first remove all subscriptions of deselected items
+    QTreeWidgetItemIterator it(ui_.topic_tree);
+    while(*it){
+        if((*it)->checkState(0) == Qt::Unchecked){
+            std::string topic = (*it)->text(3).toStdString();
+            subs_[topic].reset();
+        }
+        ++it;
+    }
+
+    // spin ros
+    while(recording_){
+        executor_.spin_some();
+        QCoreApplication::processEvents();
+    }
+
+    rclcpp::QoS qos(10);
+    rclcpp::SubscriptionOptions options;
+    options.callback_group = cb_group_;
+
+
+    // now create subscriptions again
+
+    it = QTreeWidgetItemIterator(ui_.topic_tree);
+    while(*it){
+        if((*it)->checkState(0) == Qt::Unchecked){
+            std::string topic = (*it)->text(3).toStdString();
+            std::string type = topic_info_[topic][0];
+
+            std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
+            subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
+        }
+
+        ++it;
+    }
 }
 
 void BagRecorder::onTestTopics(){
-
-    auto rows = ui_.topic_tree->topLevelItemCount();
-
-    for(auto i=0; i<rows; i++){
-        auto item_ptr = ui_.topic_tree->topLevelItem(i);
-        std::cout << item_ptr->text(3).toStdString() << "\n";
-
-        rclcpp::QoS test(10);
-        std::string std_topic = item_ptr->text(3).toStdString();
-        std::string std_type = item_ptr->text(2).toStdString(); 
-        rclcpp::GenericSubscription::SharedPtr new_sub;
-        new_sub = node_->create_generic_subscription(std_topic, std_type, test, std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1));
-
-        bool have_msg = false;
-        // give it enough tries to connect
-        for(size_t i=0; i<10000; i++){
-            rclcpp::spin_some(node_);
-            if(logging_time_){
-                while(logging_time_){
-                    rclcpp::spin_some(node_);
-                }
-                break;
-            }
-        }
-        
-        if(temp_period_.nanoseconds() == 0){
-            item_ptr->setText(1, "no messages received");
-            item_ptr->setBackground(1, QBrush(Qt::red));
-        }
-        else{
-            item_ptr->setText(1, "messages received");
-            item_ptr->setBackground(1, QBrush(Qt::green));
-        }
-        std::cout << std_topic << temp_period_.nanoseconds() << "\n";
-        new_sub.reset();
-        temp_time_ = rclcpp::Time(0);
-        temp_period_ = rclcpp::Duration(0, 0);
-        
+    // run for 2 seconds and count all incoming messages
+    auto time_in_2 = node_->get_clock()->now() + rclcpp::Duration(2,0);
+    while(node_->get_clock()->now() < time_in_2){
+        executor_.spin_some();
+        QCoreApplication::processEvents();
     }
 
+    // now draw the amount of messages received in the tree
+    for(auto &topic_pair : n_msgs_received_){
+        auto tree_item_list = ui_.topic_tree->findItems(QString::fromStdString(topic_pair.first), Qt::MatchExactly, 3);
+
+        // throw if topic is not exactly once in list
+        if(tree_item_list.size() != 1)
+            throw std::runtime_error("Topic either does not exist or more than once!");
+
+        QString s;
+        QTextStream ss(&s);
+        ss << topic_pair.second << " messages received";
+        tree_item_list.at(0)->setText(1, s);
+
+        // draw background to indicate goodness
+        if(topic_pair.second > 0)
+            tree_item_list.at(0)->setBackground(1, QBrush(Qt::green));
+        else
+            tree_item_list.at(0)->setBackground(1, QBrush(Qt::red));
+        
+    }
 }
 
 void BagRecorder::updateTopicList() {
@@ -141,19 +173,13 @@ void BagRecorder::addTopic(){
         topic_info_.find(topic.toStdString()) == topic_info_.end())
         return;
 
-    TableRow new_row = {Qt::Unchecked, "good", QString::fromStdString(topic_info_[topic.toStdString()][0]), topic};
+    TableRow new_row = {Qt::Checked, "not tested", QString::fromStdString(topic_info_[topic.toStdString()][0]), topic};
     addRowToTable(new_row);
 }
 
-void BagRecorder::genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg){
-    if(!logging_time_){
-        temp_time_ = node_->get_clock()->now();
-        logging_time_ = true;
-    }
-    else{
-        temp_period_ = node_->get_clock()->now() - temp_time_;
-        logging_time_ = false;
-    }
+
+void BagRecorder::genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type){
+    n_msgs_received_[topic] += 1;
 }
 
 void BagRecorder::addRowToTable(TableRow row){
@@ -164,10 +190,19 @@ void BagRecorder::addRowToTable(TableRow row){
     item->setText(2, row.type);
     item->setText(3, row.topic);
 
-    rclcpp::QoS test(10);
+    rclcpp::QoS qos(10);
     std::string std_topic = row.topic.toStdString();
     std::string std_type = row.type.toStdString(); 
 
+    rclcpp::SubscriptionOptions options;
+    options.callback_group = cb_group_;
+
+    std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, std_topic, std_type);
+
+    subs_.emplace(std_topic, node_->create_generic_subscription(std_topic, std_type, qos, callback_function, options));
+    n_msgs_received_.emplace(std_topic, 0);
+
+    // add item to the tree
     ui_.topic_tree->addTopLevelItem(item);
 }
 

@@ -33,26 +33,29 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void restoreSettings(const qt_gui_cpp::Settings& plugin_settings, const qt_gui_cpp::Settings& instance_settings) override;
 
     protected slots:
-        void onRecord(); 
+        void onRecord();
+        void onStopRecord();
         void onTestTopics();
         void updateTopicList();
         void addTopic();
 
     private:
         void addRowToTable(TableRow row);
-        void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg);
-        
-        // void genericRecorderCallback(std::shared_ptr<rclcpp::SerializedMessage> msg);
+        void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
+
+
         std::unique_ptr<rosbag2_cpp::Writer> writer_;
         std::map<std::string, std::vector<std::string>> topic_map_full_;
 
         rclcpp::Node::SharedPtr node_;
-        std::vector<rclcpp::GenericSubscription::SharedPtr> subs_; 
+        std::unordered_map<std::string, rclcpp::GenericSubscription::SharedPtr> subs_;
 
+        rclcpp::executors::MultiThreadedExecutor executor_;
+        rclcpp::CallbackGroup::SharedPtr cb_group_;
+
+        std::unordered_map<std::string, size_t> n_msgs_received_;
         std::map<std::string, std::vector<std::string>> topic_info_;
-        rclcpp::Time temp_time_;
-        rclcpp::Duration temp_period_;
-        bool logging_time_;
+        bool recording_;
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;
