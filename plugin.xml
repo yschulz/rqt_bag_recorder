@@ -1,0 +1,16 @@
+<library path="rqt_bag_recorder">
+  <class name="rqt_bag_recorder/BagRecorder" type="rqt_bag_recorder::BagRecorder" base_class_type="rqt_gui_cpp::Plugin">
+    <description>
+    </description>
+    <qtgui>
+      <group>
+        <label>Visualization</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to visualization.</statustip>
+      </group>
+      <label>Bag recorder</label>
+      <icon type="theme">image-x-generic</icon>
+      <statustip></statustip>
+    </qtgui>
+  </class>
+</library>
