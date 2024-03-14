@@ -82,7 +82,7 @@
      <item>
       <widget class="QPushButton" name="refresh_topics_button">
        <property name="text">
-        <string>Refresh topics</string>
+        <string>Refresh Topics</string>
        </property>
       </widget>
      </item>
@@ -106,6 +106,13 @@
       <widget class="QPushButton" name="add_topic_button">
        <property name="text">
         <string>Add Topic</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="add_all_topics">
+       <property name="text">
+        <string>Add All Topics</string>
        </property>
       </widget>
      </item>

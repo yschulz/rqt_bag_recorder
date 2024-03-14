@@ -41,6 +41,7 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     updateTopicList();
     connect(ui_.refresh_topics_button, SIGNAL(pressed()), this, SLOT(updateTopicList()));
     connect(ui_.add_topic_button, SIGNAL(pressed()), this, SLOT(addTopic()));
+    connect(ui_.add_all_topics, SIGNAL(pressed()), this, SLOT(addAllTopics()));
 
     QStringList labels;
     labels << "record" << "status" << "type" << "topic";
@@ -230,6 +231,15 @@ void BagRecorder::addTopic(){
     addRowToTable(new_row);
 }
 
+void BagRecorder::addAllTopics(){
+    // get all topic names from ros node and save it
+    topic_info_ = node_->get_topic_names_and_types();
+
+    for(const auto &topic_pair : topic_info_){
+        TableRow new_row = {Qt::Checked, "not tested", QString::fromStdString(topic_pair.second[0]), QString::fromStdString(topic_pair.first)};
+        addRowToTable(new_row);
+    }
+}
 
 void BagRecorder::genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type){
     n_msgs_received_[topic] += 1;

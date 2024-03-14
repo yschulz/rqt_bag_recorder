@@ -38,6 +38,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onTestTopics();
         void updateTopicList();
         void addTopic();
+        void addAllTopics();
         void onSetOutput();
         void checkOutFile(const QString &file_path);
 
