@@ -4,6 +4,7 @@
 
 #include <QTextStream>
 #include <QMessageBox>
+#include "yaml-cpp/yaml.h"
 
 namespace rqt_bag_recorder{
 
@@ -23,6 +24,10 @@ BagRecorder::BagRecorder():
 
     executor_.add_node(node_);
 
+    const rosbag2_cpp::StorageOptions storage_options({"my_bag", "sqlite3"});
+    const rosbag2_cpp::ConverterOptions converter_options(
+      {rmw_get_serialization_format(),
+       rmw_get_serialization_format()});
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
 }
 
@@ -57,6 +62,9 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
     connect(ui_.stop_recording, SIGNAL(pressed()), this, SLOT(onStopRecord()));
+    connect(ui_.load_config, SIGNAL(pressed()), this, SLOT(onLoadConfig()));
+
+
     connect(ui_.set_output, SIGNAL(pressed()), this, SLOT(onSetOutput()));
     connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(checkOutFile(const QString &)));
 
@@ -89,6 +97,34 @@ void BagRecorder::checkOutFile(const QString &file_path){
     }
 }
 
+void BagRecorder::onLoadConfig(){
+    topic_info_ = node_->get_topic_names_and_types();
+
+    QString config_path =  QFileDialog::getOpenFileName(widget_, tr("Open Config file"), "/home", tr("Images (*.yaml *.yml)"));
+    YAML::Node config = YAML::LoadFile(config_path.toStdString());
+
+    QString s;
+    QTextStream ss(&s);
+
+    for (const auto &topic : config["topics"]){
+        auto topic_string = topic.as<std::string>();
+
+        auto tree_item_list = ui_.topic_tree->findItems(QString::fromStdString(topic_string), Qt::MatchExactly, 3);
+
+        if(topic_info_.find(topic_string) == topic_info_.end() || !tree_item_list.isEmpty()){
+            ss << QString::fromStdString(topic_string) << "\n";
+            continue;
+        }
+        TableRow new_row = {Qt::Checked, "not tested", QString::fromStdString(topic_info_[topic_string][0]), QString::fromStdString(topic_string)};
+        addRowToTable(new_row);
+    }
+
+    if(!s.isEmpty()){
+        QMessageBox::warning(widget_, "Topics skipped!", "Topics are either duplicates or are not listed in ros:\n" + s);
+    }
+
+}
+
 void BagRecorder::onSetOutput(){
     QString out_folder_path = QFileDialog::getSaveFileName(widget_, tr("Save File"));
     ui_.out_file_box->setText(out_folder_path);
@@ -96,8 +132,8 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::onStopRecord(){
-    writer_->close();
     recording_ = false;
+    writer_->close();
 }
 
 void BagRecorder::onRecord(){
@@ -131,7 +167,7 @@ void BagRecorder::onRecord(){
         ++it;
     }
 
-    // spin ros
+    // spin ros and keep eventloop going
     while(recording_){
         executor_.spin_some();
         QCoreApplication::processEvents();
@@ -235,9 +271,20 @@ void BagRecorder::addAllTopics(){
     // get all topic names from ros node and save it
     topic_info_ = node_->get_topic_names_and_types();
 
+    QString s;
+    QTextStream ss(&s);
+
     for(const auto &topic_pair : topic_info_){
+        auto tree_item_list = ui_.topic_tree->findItems(QString::fromStdString(topic_pair.first), Qt::MatchExactly, 3);
+        if(!tree_item_list.isEmpty()){
+            ss << QString::fromStdString(topic_pair.first) << "\n";
+            continue;
+        }
         TableRow new_row = {Qt::Checked, "not tested", QString::fromStdString(topic_pair.second[0]), QString::fromStdString(topic_pair.first)};
         addRowToTable(new_row);
+    }
+    if(!s.isEmpty()){
+        QMessageBox::warning(widget_, "Found duplicates!", "Did not add topics:\n" + s);
     }
 }
 

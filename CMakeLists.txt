@@ -16,6 +16,7 @@ find_package(Qt5Widgets REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 find_package(libstatistics_collector REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 set(rqt_bag_recorder_SRCS
   src/rqt_bag_recorder.cpp
@@ -47,6 +48,7 @@ target_link_libraries(${PROJECT_NAME}
   ${rosbag2_cpp_TARGETS}
   ${libstatistics_collector_TARGETS}
   Qt5::Widgets
+  ${YAML_CPP_LIBRARIES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

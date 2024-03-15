@@ -36,6 +36,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onRecord();
         void onStopRecord();
         void onTestTopics();
+        void onLoadConfig();
         void updateTopicList();
         void addTopic();
         void addAllTopics();
@@ -59,6 +60,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::unordered_map<std::string, size_t> n_msgs_received_;
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
+        bool lock_recording_;
         std::string out_folder_path_;
 
         Ui::BagRecorderWidget ui_;
