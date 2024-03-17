@@ -10,6 +10,8 @@
 
 #include <QFileDialog>
 #include <QWidget>
+#include <QPainter>
+#include <QPainterPath>
 
 
 namespace rqt_bag_recorder {

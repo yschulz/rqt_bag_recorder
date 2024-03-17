@@ -30,9 +30,29 @@
       </widget>
      </item>
      <item>
+      <widget class="rqt_bag_recorder::RecordDot" name="record_w" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="test_topics_button">
        <property name="text">
         <string>Test Topics</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="rqt_bag_recorder::CPBar" name="test_w" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
        </property>
       </widget>
      </item>
@@ -83,74 +103,99 @@
     </layout>
    </item>
    <item>
+    <layout class="QGridLayout" name="options_layout">
+     <item row="0" column="5">
+      <widget class="QCheckBox" name="o_compression_toggle">
+       <property name="text">
+        <string>Compression</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="7">
+      <widget class="QComboBox" name="o_compression_format_cbox">
+       <property name="editable">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="4">
+      <widget class="QSpinBox" name="spinBox"/>
+     </item>
+     <item row="0" column="6">
+      <widget class="QLabel" name="o_compression_format_label">
+       <property name="text">
+        <string> - Format</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="3">
+      <widget class="QCheckBox" name="o_mx_length_toggle">
+       <property name="text">
+        <string>Maximum Bag length in seconds</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="7">
+      <widget class="QComboBox" name="o_compression_mode_cbox"/>
+     </item>
+     <item row="0" column="3">
+      <widget class="QCheckBox" name="o_mx_size_toggle">
+       <property name="text">
+        <string>Maximum Bag size in Bytes</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="o_format_label">
+       <property name="text">
+        <string>Bag Format</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QComboBox" name="o_format_cbox"/>
+     </item>
+     <item row="0" column="4">
+      <widget class="QSpinBox" name="o_mx_size_spin"/>
+     </item>
+     <item row="2" column="6">
+      <widget class="QLabel" name="o_compressio_mode_label">
+       <property name="text">
+        <string> - Mode</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="8">
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="main_layout">
      <item>
-      <layout class="QGridLayout" name="options_layout">
-       <item row="2" column="0">
-        <widget class="QCheckBox" name="checkBox">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="3">
-        <widget class="QSpinBox" name="o_mx_size_spin"/>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="o_format_label">
-         <property name="text">
-          <string>Format</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QCheckBox" name="o_mx_size_toggle">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item row="0" column="3">
-        <widget class="QComboBox" name="o_format_cbox"/>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLabel" name="o_mx_length_label">
-         <property name="text">
-          <string>Max Bag Length</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="o_mx_size_label">
-         <property name="text">
-          <string>Max Bag Size</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="3">
-        <widget class="QSpinBox" name="spinBox"/>
-       </item>
-       <item row="3" column="1">
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string>TextLabel</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
+      <widget class="QTreeWidget" name="treeWidget">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <column>
+        <property name="text">
+         <string notr="true">1</string>
+        </property>
+       </column>
+      </widget>
      </item>
      <item>
       <layout class="QVBoxLayout" name="tree_layout">
@@ -217,6 +262,20 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>rqt_bag_recorder::CPBar</class>
+   <extends>QWidget</extends>
+   <header>rqt_bag_recorder/bag_recorder_widgets.hpp</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>rqt_bag_recorder::RecordDot</class>
+   <extends>QWidget</extends>
+   <header>rqt_bag_recorder/bag_recorder_widgets.hpp</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

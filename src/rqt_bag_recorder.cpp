@@ -24,10 +24,10 @@ BagRecorder::BagRecorder():
 
     executor_.add_node(node_);
 
-    const rosbag2_cpp::StorageOptions storage_options({"my_bag", "sqlite3"});
-    const rosbag2_cpp::ConverterOptions converter_options(
-      {rmw_get_serialization_format(),
-       rmw_get_serialization_format()});
+    // const rosbag2_cpp::StorageOptions storage_options({"my_bag", "sqlite3"});
+    // const rosbag2_cpp::ConverterOptions converter_options(
+    //   {rmw_get_serialization_format(),
+    //    rmw_get_serialization_format()});
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
 }
 
@@ -90,6 +90,7 @@ void BagRecorder::checkOutFile(const QString &file_path){
         ui_.out_file_box->setPalette(palette);
     }
     else{
+        out_folder_path_ = file_path.toStdString();
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::white);
         palette.setColor(QPalette::Text, Qt::black);
@@ -120,7 +121,7 @@ void BagRecorder::onLoadConfig(){
     }
 
     if(!s.isEmpty()){
-        QMessageBox::warning(widget_, "Topics skipped!", "Topics are either duplicates or are not listed in ros:\n" + s);
+        QMessageBox::warning(widget_, "Topics skipped!", "Topics are either duplicates or not listed in ros:\n" + s);
     }
 
 }
@@ -133,7 +134,11 @@ void BagRecorder::onSetOutput(){
 
 void BagRecorder::onStopRecord(){
     recording_ = false;
-    writer_->close();
+
+    QPalette palette;
+    palette.setColor(QPalette::Base, Qt::red);
+    palette.setColor(QPalette::Text, Qt::black);
+    ui_.out_file_box->setPalette(palette);
 }
 
 void BagRecorder::onRecord(){
@@ -144,28 +149,29 @@ void BagRecorder::onRecord(){
 
     writer_->open(out_folder_path_);
     recording_ = true;
+    ui_.record_w->setRecordStatus(recording_);
 
     // first remove all subscriptions of deselected items and set status
-    QTreeWidgetItemIterator it(ui_.topic_tree);
-    while(*it){
-        if((*it)->checkState(0) == Qt::Unchecked){
-            std::string topic = (*it)->text(3).toStdString();
-            subs_[topic].reset();
+    // QTreeWidgetItemIterator it(ui_.topic_tree);
+    // while(*it){
+    //     if((*it)->checkState(0) == Qt::Unchecked){
+    //         std::string topic = (*it)->text(3).toStdString();
+    //         subs_[topic].reset();
 
-            (*it)->setText(1, "idle");
+    //         (*it)->setText(1, "idle");
 
-            (*it)->setBackground(1, QBrush(Qt::gray));
-        }
-        else{
-            (*it)->setText(1, "recording...");
-            QBrush recording_brush;
-            QColor brown(210, 147, 84, 1);
-            recording_brush.setColor(brown);
-            (*it)->setBackground(1, recording_brush);
-            (*it)->setBackground(1, recording_brush);
-        }
-        ++it;
-    }
+    //         (*it)->setBackground(1, QBrush(Qt::gray));
+    //     }
+    //     else{
+    //         (*it)->setText(1, "recording...");
+    //         QBrush recording_brush;
+    //         QColor brown(210, 147, 84, 255);
+    //         recording_brush.setColor(brown);
+    //         (*it)->setBackground(1, recording_brush);
+    //         (*it)->setBackground(1, recording_brush);
+    //     }
+    //     ++it;
+    // }
 
     // spin ros and keep eventloop going
     while(recording_){
@@ -173,41 +179,51 @@ void BagRecorder::onRecord(){
         QCoreApplication::processEvents();
     }
 
-    rclcpp::QoS qos(10);
-    rclcpp::SubscriptionOptions options;
-    options.callback_group = cb_group_;
+    writer_->close();
+    
+    ui_.record_w->setRecordStatus(recording_);
+
+    // rclcpp::QoS qos(10);
+    // rclcpp::SubscriptionOptions options;
+    // options.callback_group = cb_group_;
 
 
     // now create subscriptions again
 
-    it = QTreeWidgetItemIterator(ui_.topic_tree);
-    while(*it){
-        if((*it)->checkState(0) == Qt::Unchecked){
-            std::string topic = (*it)->text(3).toStdString();
-            std::string type = topic_info_[topic][0];
+    // it = QTreeWidgetItemIterator(ui_.topic_tree);
+    // while(*it){
+    //     if((*it)->checkState(0) == Qt::Unchecked){
+    //         std::string topic = (*it)->text(3).toStdString();
+    //         std::string type = topic_info_[topic][0];
 
-            std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
-            subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
-        }
-        else{
-            (*it)->setText(1, "Done!");
-            QBrush recording_brush;
-            QColor yellow(245, 235, 94, 1);
-            recording_brush.setColor(yellow);
-            (*it)->setBackground(1, recording_brush);
-        }
+    //         std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
+    //         subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
+    //     }
+    //     else{
+    //         (*it)->setText(1, "Done!");
+    //         QBrush recording_brush;
+    //         QColor yellow(245, 235, 94, 1);
+    //         recording_brush.setColor(yellow);
+    //         (*it)->setBackground(1, recording_brush);
+    //     }
 
-        ++it;
-    }
+    //     ++it;
+    // }
 }
 
 void BagRecorder::onTestTopics(){
     // run for 2 seconds and count all incoming messages
-    auto time_in_2 = node_->get_clock()->now() + rclcpp::Duration(2,0);
-    while(node_->get_clock()->now() < time_in_2){
+    auto time_before = node_->get_clock()->now();
+
+    
+    double progress = 0;
+    while(progress < 1){
+        progress = (node_->get_clock()->now() - time_before).seconds() / rclcpp::Duration(2,0).seconds();
         executor_.spin_some();
+        ui_.test_w->drawProgress(progress);
         QCoreApplication::processEvents();
     }
+    ui_.test_w->drawProgress(0.0);
 
     // now draw the amount of messages received in the tree
     for(auto &topic_pair : n_msgs_received_){
