@@ -4,13 +4,17 @@
 
 #include <QTextStream>
 #include <QMessageBox>
+#include <QTimer>
+#include "yaml-cpp/yaml.h"
 
 namespace rqt_bag_recorder{
 
 BagRecorder::BagRecorder(): 
     rqt_gui_cpp::Plugin(), 
     widget_(nullptr),
-    out_folder_path_(""){
+    out_folder_path_(""),
+    converter_options_({rmw_get_serialization_format(), rmw_get_serialization_format()}),
+    storage_options_({out_folder_path_, "sqlite3"}){
 
     setObjectName("BagRecorder");
 
@@ -41,6 +45,7 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     updateTopicList();
     connect(ui_.refresh_topics_button, SIGNAL(pressed()), this, SLOT(updateTopicList()));
     connect(ui_.add_topic_button, SIGNAL(pressed()), this, SLOT(addTopic()));
+    connect(ui_.add_all_topics, SIGNAL(pressed()), this, SLOT(addAllTopics()));
 
     QStringList labels;
     labels << "record" << "status" << "type" << "topic";
@@ -55,9 +60,39 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
-    connect(ui_.stop_recording, SIGNAL(pressed()), this, SLOT(onStopRecord()));
+    connect(ui_.load_config, SIGNAL(pressed()), this, SLOT(onLoadConfig()));
+
+
     connect(ui_.set_output, SIGNAL(pressed()), this, SLOT(onSetOutput()));
     connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(checkOutFile(const QString &)));
+
+    connect(this, SIGNAL(sendRecordStatus(bool)), ui_.record_w, SLOT(setRecordStatus(bool)));
+
+    ui_.o_format_cbox->addItem(QString("sqlite3"));
+    ui_.o_format_cbox->addItem(QString("mcap"));
+    ui_.o_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText("sqlite3"));
+
+    ui_.o_compression_format_cbox->addItem(QString("Lz4"));
+    ui_.o_compression_format_cbox->addItem(QString("Zstd"));
+    ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+    ui_.o_compression_format_cbox->setDisabled(true);
+
+    ui_.o_compression_mode_cbox->addItem(QString("file"));
+    ui_.o_compression_mode_cbox->addItem(QString("message"));
+    ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+    ui_.o_compression_mode_cbox->setDisabled(true);
+
+    connect(ui_.o_compression_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleCompression(int)));
+
+    connect(ui_.o_mx_size_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleBagSize(int)));
+    connect(ui_.o_mx_size_spin, SIGNAL(valueChanged(int)), this, SLOT(onBagSizeSpin(int)));
+    ui_.o_mx_size_spin->setDisabled(true);
+    ui_.o_mx_size_spin->setMaximum(std::numeric_limits<int>::max());
+
+    connect(ui_.o_mx_length_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleBagLength(int)));
+    connect(ui_.o_mx_length_spin, SIGNAL(valueChanged(int)), this, SLOT(onBagLengthSpin(int)));
+    ui_.o_mx_length_spin->setDisabled(true);
+    ui_.o_mx_length_spin->setMaximum(std::numeric_limits<int>::max());
 
 }
 
@@ -73,19 +108,114 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 
 }
 
+void BagRecorder::onBagSizeSpin(int value){
+    storage_options_.max_bagfile_size = value;
+}
+
+void BagRecorder::onBagLengthSpin(int value){
+    storage_options_.max_bagfile_duration = value;
+}
+
+void BagRecorder::onToggleBagSize(int state){
+    switch (state)
+    {
+    case Qt::Checked:
+        ui_.o_mx_size_spin->setDisabled(false);
+        break;
+    case Qt::Unchecked:
+        ui_.o_mx_size_spin->setValue(0);
+        ui_.o_mx_size_spin->setDisabled(true);
+        break;
+    
+    default:
+        break;
+    }
+}
+
+void BagRecorder::onToggleBagLength(int state){
+    switch (state)
+    {
+    case Qt::Checked:
+        ui_.o_mx_length_spin->setDisabled(false);
+        break;
+    case Qt::Unchecked:
+        ui_.o_mx_length_spin->setValue(0);
+        ui_.o_mx_length_spin->setDisabled(true);
+        break;
+    
+    default:
+        break;
+    }
+}
+
+void BagRecorder::onToggleCompression(int state){
+
+    switch (state)
+    {
+    case Qt::Checked:
+        ui_.o_compression_format_cbox->setDisabled(false);
+        ui_.o_compression_mode_cbox->setDisabled(false);
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText("Lz4"));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText("file"));
+        break;
+    case Qt::Unchecked:
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText(""));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText(""));
+        ui_.o_compression_format_cbox->setDisabled(true);
+        ui_.o_compression_mode_cbox->setDisabled(true);
+        break;
+    
+    default:
+        break;
+    }
+}
+
 void BagRecorder::checkOutFile(const QString &file_path){
     if(QDir(file_path).exists()){
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::red);
         palette.setColor(QPalette::Text, Qt::black);
         ui_.out_file_box->setPalette(palette);
+        lock_recording_ = true;
+        storage_options_.uri = std::string("");
     }
     else{
+        out_folder_path_ = file_path.toStdString();
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::white);
         palette.setColor(QPalette::Text, Qt::black);
         ui_.out_file_box->setPalette(palette);
+        lock_recording_ = false;
+        storage_options_.uri = out_folder_path_;
     }
+}
+
+void BagRecorder::onLoadConfig(){
+    topic_info_ = node_->get_topic_names_and_types();
+
+    QString config_path =  QFileDialog::getOpenFileName(widget_, tr("Open Config file"), "/home", tr("Images (*.yaml *.yml)"));
+    YAML::Node config = YAML::LoadFile(config_path.toStdString());
+
+    QString s;
+    QTextStream ss(&s);
+
+    for (const auto &topic : config["topics"]){
+        auto topic_string = topic.as<std::string>();
+
+        auto tree_item_list = ui_.topic_tree->findItems(QString::fromStdString(topic_string), Qt::MatchExactly, 3);
+
+        if(topic_info_.find(topic_string) == topic_info_.end() || !tree_item_list.isEmpty()){
+            ss << QString::fromStdString(topic_string) << "\n";
+            continue;
+        }
+        TableRow new_row = {Qt::Checked, "not tested", QString::fromStdString(topic_info_[topic_string][0]), QString::fromStdString(topic_string)};
+        addRowToTable(new_row);
+    }
+
+    if(!s.isEmpty()){
+        QMessageBox::warning(widget_, "Topics skipped!", "Topics are either duplicates or not listed in ros:\n" + s);
+    }
+
 }
 
 void BagRecorder::onSetOutput(){
@@ -94,83 +224,124 @@ void BagRecorder::onSetOutput(){
     out_folder_path_ = out_folder_path.toStdString();
 }
 
-void BagRecorder::onStopRecord(){
-    writer_->close();
-    recording_ = false;
+void BagRecorder::updateCompressionOptions(){
+    compression_options_.compression_format = ui_.o_compression_format_cbox->currentText().toStdString();
+    if(ui_.o_compression_format_cbox->currentText() == "file"){
+        compression_options_.compression_mode = rosbag2_compression::CompressionMode::FILE;
+    }
+    else if(ui_.o_compression_format_cbox->currentText() == "message"){
+        compression_options_.compression_mode = rosbag2_compression::CompressionMode::MESSAGE;
+    }
+    else{
+        compression_options_.compression_mode = rosbag2_compression::CompressionMode::NONE;
+    }
 }
 
 void BagRecorder::onRecord(){
+
+    if(recording_){
+        recording_ = false;
+        checkOutFile(QString::fromStdString(out_folder_path_));
+        ui_.record_button->setText("Record");
+        return;
+    }
+
     if(out_folder_path_.empty()){
         QMessageBox::warning(widget_, "No folder was defined!", "Cannot record.");
         return;
     }
 
-    writer_->open(out_folder_path_);
-    recording_ = true;
+    if(lock_recording_) return;
+
+    ui_.record_button->setText("Stop");
 
     // first remove all subscriptions of deselected items and set status
-    QTreeWidgetItemIterator it(ui_.topic_tree);
-    while(*it){
-        if((*it)->checkState(0) == Qt::Unchecked){
-            std::string topic = (*it)->text(3).toStdString();
-            subs_[topic].reset();
+    // QTreeWidgetItemIterator it(ui_.topic_tree);
+    // while(*it){
+    //     if((*it)->checkState(0) == Qt::Unchecked){
+    //         std::string topic = (*it)->text(3).toStdString();
+    //         subs_[topic].reset();
 
-            (*it)->setText(1, "idle");
+    //         (*it)->setText(1, "idle");
 
-            (*it)->setBackground(1, QBrush(Qt::gray));
-        }
-        else{
-            (*it)->setText(1, "recording...");
-            QBrush recording_brush;
-            QColor brown(210, 147, 84, 1);
-            recording_brush.setColor(brown);
-            (*it)->setBackground(1, recording_brush);
-            (*it)->setBackground(1, recording_brush);
-        }
-        ++it;
+    //         (*it)->setBackground(1, QBrush(Qt::gray));
+    //     }
+    //     else{
+    //         (*it)->setText(1, "recording...");
+    //         QBrush recording_brush;
+    //         QColor brown(210, 147, 84, 255);
+    //         recording_brush.setColor(brown);
+    //         (*it)->setBackground(1, recording_brush);
+    //         (*it)->setBackground(1, recording_brush);
+    //     }
+    //     ++it;
+    // }
+
+    // reset writer and create either compressing writer or simple sequential
+    writer_.reset();
+    if(ui_.o_compression_toggle->checkState() == Qt::Checked){
+        updateCompressionOptions();
+        writer_ = std::make_unique<rosbag2_cpp::Writer>(std::make_unique<rosbag2_compression::SequentialCompressionWriter>(compression_options_));
     }
+    else{
+        writer_ = std::make_unique<rosbag2_cpp::Writer>();
+    }
+    
+    
+    writer_->open(storage_options_, converter_options_);
+    recording_ = true;
+    emit sendRecordStatus(recording_);
 
-    // spin ros
+    // spin ros and keep eventloop going
     while(recording_){
         executor_.spin_some();
         QCoreApplication::processEvents();
     }
 
-    rclcpp::QoS qos(10);
-    rclcpp::SubscriptionOptions options;
-    options.callback_group = cb_group_;
+    writer_->close();
+    emit sendRecordStatus(recording_);
+
+    // rclcpp::QoS qos(10);
+    // rclcpp::SubscriptionOptions options;
+    // options.callback_group = cb_group_;
 
 
     // now create subscriptions again
 
-    it = QTreeWidgetItemIterator(ui_.topic_tree);
-    while(*it){
-        if((*it)->checkState(0) == Qt::Unchecked){
-            std::string topic = (*it)->text(3).toStdString();
-            std::string type = topic_info_[topic][0];
+    // it = QTreeWidgetItemIterator(ui_.topic_tree);
+    // while(*it){
+    //     if((*it)->checkState(0) == Qt::Unchecked){
+    //         std::string topic = (*it)->text(3).toStdString();
+    //         std::string type = topic_info_[topic][0];
 
-            std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
-            subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
-        }
-        else{
-            (*it)->setText(1, "Done!");
-            QBrush recording_brush;
-            QColor yellow(245, 235, 94, 1);
-            recording_brush.setColor(yellow);
-            (*it)->setBackground(1, recording_brush);
-        }
+    //         std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
+    //         subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
+    //     }
+    //     else{
+    //         (*it)->setText(1, "Done!");
+    //         QBrush recording_brush;
+    //         QColor yellow(245, 235, 94, 1);
+    //         recording_brush.setColor(yellow);
+    //         (*it)->setBackground(1, recording_brush);
+    //     }
 
-        ++it;
-    }
+    //     ++it;
+    // }
 }
 
 void BagRecorder::onTestTopics(){
     // run for 2 seconds and count all incoming messages
-    auto time_in_2 = node_->get_clock()->now() + rclcpp::Duration(2,0);
-    while(node_->get_clock()->now() < time_in_2){
+    auto time_before = node_->get_clock()->now();
+
+    
+    double progress = 0;
+    while(progress < 1){
+        progress = (node_->get_clock()->now() - time_before).seconds() / rclcpp::Duration(2,0).seconds();
         executor_.spin_some();
+        ui_.test_w->drawProgress(progress);
         QCoreApplication::processEvents();
     }
+    ui_.test_w->drawProgress(0.0);
 
     // now draw the amount of messages received in the tree
     for(auto &topic_pair : n_msgs_received_){
@@ -230,6 +401,26 @@ void BagRecorder::addTopic(){
     addRowToTable(new_row);
 }
 
+void BagRecorder::addAllTopics(){
+    // get all topic names from ros node and save it
+    topic_info_ = node_->get_topic_names_and_types();
+
+    QString s;
+    QTextStream ss(&s);
+
+    for(const auto &topic_pair : topic_info_){
+        auto tree_item_list = ui_.topic_tree->findItems(QString::fromStdString(topic_pair.first), Qt::MatchExactly, 3);
+        if(!tree_item_list.isEmpty()){
+            ss << QString::fromStdString(topic_pair.first) << "\n";
+            continue;
+        }
+        TableRow new_row = {Qt::Checked, "not tested", QString::fromStdString(topic_pair.second[0]), QString::fromStdString(topic_pair.first)};
+        addRowToTable(new_row);
+    }
+    if(!s.isEmpty()){
+        QMessageBox::warning(widget_, "Found duplicates!", "Did not add topics:\n" + s);
+    }
+}
 
 void BagRecorder::genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type){
     n_msgs_received_[topic] += 1;

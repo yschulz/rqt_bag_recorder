@@ -15,14 +15,20 @@ find_package(rqt_gui_cpp REQUIRED)
 find_package(Qt5Widgets REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
+find_package(rosbag2_storage REQUIRED)
+find_package(rosbag2_compression REQUIRED)
 find_package(libstatistics_collector REQUIRED)
+find_package(yaml-cpp REQUIRED)
+find_package(std_msgs REQUIRED)
 
 set(rqt_bag_recorder_SRCS
   src/rqt_bag_recorder.cpp
+  src/bag_recorder_widgets.cpp
 )
 
 set(rqt_bag_recorder_HDRS
   include/rqt_bag_recorder/rqt_bag_recorder.hpp
+  include/rqt_bag_recorder/bag_recorder_widgets.hpp
 )
 
 set(rqt_bag_recorder_UIS
@@ -45,8 +51,11 @@ target_link_libraries(${PROJECT_NAME}
   ${qt_gui_cpp_TARGETS}
   ${rqt_gui_cpp_TARGETS}
   ${rosbag2_cpp_TARGETS}
+  ${rosbag2_storage_TARGETS}
+  ${rosbag2_compression_TARGETS}
   ${libstatistics_collector_TARGETS}
   Qt5::Widgets
+  ${YAML_CPP_LIBRARIES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -78,8 +87,17 @@ install(DIRECTORY resource
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(DIRECTORY DESTINATION
-  ${DESKTOP_APP_DIR}
+
+add_executable(writer_test src/test_bag_rec.cpp)
+ament_target_dependencies(writer_test
+  rclcpp
+  rosbag2_cpp
+  std_msgs
+)
+
+install(TARGETS
+    writer_test
+  	DESTINATION lib/${PROJECT_NAME}
 )
 
 pluginlib_export_plugin_description_file(rqt_gui "plugin.xml")
