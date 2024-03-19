@@ -60,7 +60,6 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
-    connect(ui_.stop_recording, SIGNAL(pressed()), this, SLOT(onStopRecord()));
     connect(ui_.load_config, SIGNAL(pressed()), this, SLOT(onLoadConfig()));
 
 
@@ -84,6 +83,17 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.o_compression_mode_cbox->setDisabled(true);
 
     connect(ui_.o_compression_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleCompression(int)));
+
+    connect(ui_.o_mx_size_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleBagSize(int)));
+    connect(ui_.o_mx_size_spin, SIGNAL(valueChanged(int)), this, SLOT(onBagSizeSpin(int)));
+    ui_.o_mx_size_spin->setDisabled(true);
+    ui_.o_mx_size_spin->setMaximum(std::numeric_limits<int>::max());
+
+    connect(ui_.o_mx_length_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleBagLength(int)));
+    connect(ui_.o_mx_length_spin, SIGNAL(valueChanged(int)), this, SLOT(onBagLengthSpin(int)));
+    ui_.o_mx_length_spin->setDisabled(true);
+    ui_.o_mx_length_spin->setMaximum(std::numeric_limits<int>::max());
+
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -98,6 +108,46 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 
 }
 
+void BagRecorder::onBagSizeSpin(int value){
+    storage_options_.max_bagfile_size = value;
+}
+
+void BagRecorder::onBagLengthSpin(int value){
+    storage_options_.max_bagfile_duration = value;
+}
+
+void BagRecorder::onToggleBagSize(int state){
+    switch (state)
+    {
+    case Qt::Checked:
+        ui_.o_mx_size_spin->setDisabled(false);
+        break;
+    case Qt::Unchecked:
+        ui_.o_mx_size_spin->setValue(0);
+        ui_.o_mx_size_spin->setDisabled(true);
+        break;
+    
+    default:
+        break;
+    }
+}
+
+void BagRecorder::onToggleBagLength(int state){
+    switch (state)
+    {
+    case Qt::Checked:
+        ui_.o_mx_length_spin->setDisabled(false);
+        break;
+    case Qt::Unchecked:
+        ui_.o_mx_length_spin->setValue(0);
+        ui_.o_mx_length_spin->setDisabled(true);
+        break;
+    
+    default:
+        break;
+    }
+}
+
 void BagRecorder::onToggleCompression(int state){
 
     switch (state)
@@ -105,12 +155,12 @@ void BagRecorder::onToggleCompression(int state){
     case Qt::Checked:
         ui_.o_compression_format_cbox->setDisabled(false);
         ui_.o_compression_mode_cbox->setDisabled(false);
-        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText("Lz4"));
-        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_format_cbox->findText("file"));
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText("Lz4"));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText("file"));
         break;
     case Qt::Unchecked:
-        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
-        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText(""));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText(""));
         ui_.o_compression_format_cbox->setDisabled(true);
         ui_.o_compression_mode_cbox->setDisabled(true);
         break;
@@ -174,22 +224,36 @@ void BagRecorder::onSetOutput(){
     out_folder_path_ = out_folder_path.toStdString();
 }
 
-void BagRecorder::onStopRecord(){
-    recording_ = false;
-    checkOutFile(QString::fromStdString(out_folder_path_));
-}
-
 void BagRecorder::updateCompressionOptions(){
-
+    compression_options_.compression_format = ui_.o_compression_format_cbox->currentText().toStdString();
+    if(ui_.o_compression_format_cbox->currentText() == "file"){
+        compression_options_.compression_mode = rosbag2_compression::CompressionMode::FILE;
+    }
+    else if(ui_.o_compression_format_cbox->currentText() == "message"){
+        compression_options_.compression_mode = rosbag2_compression::CompressionMode::MESSAGE;
+    }
+    else{
+        compression_options_.compression_mode = rosbag2_compression::CompressionMode::NONE;
+    }
 }
 
 void BagRecorder::onRecord(){
+
+    if(recording_){
+        recording_ = false;
+        checkOutFile(QString::fromStdString(out_folder_path_));
+        ui_.record_button->setText("Record");
+        return;
+    }
+
     if(out_folder_path_.empty()){
         QMessageBox::warning(widget_, "No folder was defined!", "Cannot record.");
         return;
     }
 
     if(lock_recording_) return;
+
+    ui_.record_button->setText("Stop");
 
     // first remove all subscriptions of deselected items and set status
     // QTreeWidgetItemIterator it(ui_.topic_tree);
@@ -215,7 +279,8 @@ void BagRecorder::onRecord(){
 
     // reset writer and create either compressing writer or simple sequential
     writer_.reset();
-    if(compression_){
+    if(ui_.o_compression_toggle->checkState() == Qt::Checked){
+        updateCompressionOptions();
         writer_ = std::make_unique<rosbag2_cpp::Writer>(std::make_unique<rosbag2_compression::SequentialCompressionWriter>(compression_options_));
     }
     else{

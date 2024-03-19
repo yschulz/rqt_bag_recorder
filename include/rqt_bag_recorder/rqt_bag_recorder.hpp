@@ -44,7 +44,6 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
     protected slots:
         void onRecord();
-        void onStopRecord();
         void onTestTopics();
         void onLoadConfig();
         void updateTopicList();
@@ -52,7 +51,13 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void addAllTopics();
         void onSetOutput();
         void checkOutFile(const QString &file_path);
+
         void onToggleCompression(int state);
+        void onToggleBagSize(int state);
+        void onToggleBagLength(int state);
+
+        void onBagSizeSpin(int value);
+        void onBagLengthSpin(int value);
 
     private:
         bool isFilePathValid(QString path);
@@ -81,7 +86,6 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
         bool lock_recording_;
-        bool compression_;
         std::string out_folder_path_;
 
         Ui::BagRecorderWidget ui_;
