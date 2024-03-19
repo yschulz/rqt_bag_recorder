@@ -15,6 +15,8 @@ find_package(rqt_gui_cpp REQUIRED)
 find_package(Qt5Widgets REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
+find_package(rosbag2_storage REQUIRED)
+find_package(rosbag2_compression REQUIRED)
 find_package(libstatistics_collector REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -49,6 +51,8 @@ target_link_libraries(${PROJECT_NAME}
   ${qt_gui_cpp_TARGETS}
   ${rqt_gui_cpp_TARGETS}
   ${rosbag2_cpp_TARGETS}
+  ${rosbag2_storage_TARGETS}
+  ${rosbag2_compression_TARGETS}
   ${libstatistics_collector_TARGETS}
   Qt5::Widgets
   ${YAML_CPP_LIBRARIES}

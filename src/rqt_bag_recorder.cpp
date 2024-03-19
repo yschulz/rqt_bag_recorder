@@ -12,7 +12,9 @@ namespace rqt_bag_recorder{
 BagRecorder::BagRecorder(): 
     rqt_gui_cpp::Plugin(), 
     widget_(nullptr),
-    out_folder_path_(""){
+    out_folder_path_(""),
+    converter_options_({rmw_get_serialization_format(), rmw_get_serialization_format()}),
+    storage_options_({out_folder_path_, "sqlite3"}){
 
     setObjectName("BagRecorder");
 
@@ -25,10 +27,6 @@ BagRecorder::BagRecorder():
 
     executor_.add_node(node_);
 
-    // const rosbag2_cpp::StorageOptions storage_options({"my_bag", "sqlite3"});
-    // const rosbag2_cpp::ConverterOptions converter_options(
-    //   {rmw_get_serialization_format(),
-    //    rmw_get_serialization_format()});
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
 }
 
@@ -71,6 +69,21 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
     connect(this, SIGNAL(sendRecordStatus(bool)), ui_.record_w, SLOT(setRecordStatus(bool)));
 
+    ui_.o_format_cbox->addItem(QString("sqlite3"));
+    ui_.o_format_cbox->addItem(QString("mcap"));
+    ui_.o_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText("sqlite3"));
+
+    ui_.o_compression_format_cbox->addItem(QString("Lz4"));
+    ui_.o_compression_format_cbox->addItem(QString("Zstd"));
+    ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+    ui_.o_compression_format_cbox->setDisabled(true);
+
+    ui_.o_compression_mode_cbox->addItem(QString("file"));
+    ui_.o_compression_mode_cbox->addItem(QString("message"));
+    ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+    ui_.o_compression_mode_cbox->setDisabled(true);
+
+    connect(ui_.o_compression_toggle, SIGNAL(stateChanged(int)), this, SLOT(onToggleCompression(int)));
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -85,6 +98,28 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 
 }
 
+void BagRecorder::onToggleCompression(int state){
+
+    switch (state)
+    {
+    case Qt::Checked:
+        ui_.o_compression_format_cbox->setDisabled(false);
+        ui_.o_compression_mode_cbox->setDisabled(false);
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText("Lz4"));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_format_cbox->findText("file"));
+        break;
+    case Qt::Unchecked:
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
+        ui_.o_compression_format_cbox->setDisabled(true);
+        ui_.o_compression_mode_cbox->setDisabled(true);
+        break;
+    
+    default:
+        break;
+    }
+}
+
 void BagRecorder::checkOutFile(const QString &file_path){
     if(QDir(file_path).exists()){
         QPalette palette;
@@ -92,6 +127,7 @@ void BagRecorder::checkOutFile(const QString &file_path){
         palette.setColor(QPalette::Text, Qt::black);
         ui_.out_file_box->setPalette(palette);
         lock_recording_ = true;
+        storage_options_.uri = std::string("");
     }
     else{
         out_folder_path_ = file_path.toStdString();
@@ -100,6 +136,7 @@ void BagRecorder::checkOutFile(const QString &file_path){
         palette.setColor(QPalette::Text, Qt::black);
         ui_.out_file_box->setPalette(palette);
         lock_recording_ = false;
+        storage_options_.uri = out_folder_path_;
     }
 }
 
@@ -139,7 +176,11 @@ void BagRecorder::onSetOutput(){
 
 void BagRecorder::onStopRecord(){
     recording_ = false;
-    checkOutFile(out_folder_path_);
+    checkOutFile(QString::fromStdString(out_folder_path_));
+}
+
+void BagRecorder::updateCompressionOptions(){
+
 }
 
 void BagRecorder::onRecord(){
@@ -172,7 +213,17 @@ void BagRecorder::onRecord(){
     //     ++it;
     // }
 
-    writer_->open(out_folder_path_);
+    // reset writer and create either compressing writer or simple sequential
+    writer_.reset();
+    if(compression_){
+        writer_ = std::make_unique<rosbag2_cpp::Writer>(std::make_unique<rosbag2_compression::SequentialCompressionWriter>(compression_options_));
+    }
+    else{
+        writer_ = std::make_unique<rosbag2_cpp::Writer>();
+    }
+    
+    
+    writer_->open(storage_options_, converter_options_);
     recording_ = true;
     emit sendRecordStatus(recording_);
 

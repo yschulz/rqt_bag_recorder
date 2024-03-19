@@ -3,6 +3,11 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <rosbag2_cpp/writer.hpp>
+#include <rosbag2_cpp/converter_options.hpp>
+#include <rosbag2_storage/storage_options.hpp>
+#include <rosbag2_compression/compression_options.hpp>
+#include <rosbag2_compression/sequential_compression_writer.hpp>
+
 #include <rqt_gui_cpp/plugin.h>
 #include "libstatistics_collector/topic_statistics_collector/received_message_period.hpp"
 
@@ -47,14 +52,23 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void addAllTopics();
         void onSetOutput();
         void checkOutFile(const QString &file_path);
+        void onToggleCompression(int state);
 
     private:
         bool isFilePathValid(QString path);
         void addRowToTable(TableRow row);
         void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
 
+        void updateCompressionOptions();
+
 
         std::unique_ptr<rosbag2_cpp::Writer> writer_;
+
+        rosbag2_cpp::ConverterOptions converter_options_;
+        rosbag2_storage::StorageOptions storage_options_;
+        rosbag2_compression::CompressionOptions compression_options_;
+
+
         std::map<std::string, std::vector<std::string>> topic_map_full_;
 
         rclcpp::Node::SharedPtr node_;
@@ -67,6 +81,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
         bool lock_recording_;
+        bool compression_;
         std::string out_folder_path_;
 
         Ui::BagRecorderWidget ui_;
