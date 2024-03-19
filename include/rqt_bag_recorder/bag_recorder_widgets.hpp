@@ -11,10 +11,16 @@ class CPBar : public QWidget {
     Q_OBJECT
     public:
         CPBar(QWidget * parent = nullptr);
-        void drawProgress(qreal pp);
+        void drawProgress(qreal new_progress);
         void paintEvent(QPaintEvent *);
+
     private:
-        qreal progress_; // progress 0.0 to 1.0
+        // progress 0.0 to 1.0
+        qreal progress_; 
+
+        QPen progress_pen_;
+        QPen placeholder_pen_;
+
         int box_size_ = 25;
         int painter_offset_ = 6;
         int pen_stroke_ = 4;
@@ -24,14 +30,26 @@ class RecordDot : public QWidget {
     Q_OBJECT
     public:
         RecordDot(QWidget * parent = nullptr);
-        void setRecordStatus(bool record);
         void paintEvent(QPaintEvent *);
 
+
+    protected slots:
+        void setRecordStatus(bool record);
+
     private:
+        QTimer* timer_;
+
+        QPen outline_pen_;
+        QBrush background_brush_;
+
+        QPainterPath ellipse_path_;
+        QPainterPath circle_path_;
+        
+        bool record_;
         int box_size_ = 25;
         int painter_offset_ = 6;
         int pen_stroke_ = 3;
-        bool record_;
+        
 };
 
 }

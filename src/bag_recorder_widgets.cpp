@@ -1,15 +1,31 @@
 #include "rqt_bag_recorder/bag_recorder_widgets.hpp"
 
+#include <chrono>
+#include <cmath>
+
+#include <QTimer>
+
 namespace rqt_bag_recorder{
 
 CPBar::CPBar(QWidget * parent) : QWidget(parent), progress_(0) {
     QWidget::setMinimumSize(box_size_, box_size_);
-    // QWidget::setMinimumSize(208, 208);
+
+    progress_pen_.setCapStyle(Qt::FlatCap);
+    progress_pen_.setColor(QColor("#30b7e0"));
+    progress_pen_.setWidth(pen_stroke_);
+
+    placeholder_pen_.setWidth(pen_stroke_);
+    placeholder_pen_.setColor(QColor("#d7d7d7"));
+    placeholder_pen_.setCapStyle(Qt::FlatCap);
+    placeholder_pen_.setDashPattern(QVector<qreal>{0.5, 1.105});
+    placeholder_pen_.setDashOffset(2.2);
 }
 
-void CPBar::drawProgress(qreal pp) {
-    if (progress_ == pp) return;
-    progress_ = pp;
+void CPBar::drawProgress(qreal new_progress) {
+    if (progress_ == new_progress) return;
+    if(new_progress < -0.01 || new_progress > 1.01) return;
+
+    progress_ = new_progress;
     QWidget::update();
 }
 
@@ -17,29 +33,21 @@ void CPBar::paintEvent(QPaintEvent *) {
     qreal pd = progress_ * 360;
     qreal rd = 360 - pd;
     QPainter painter(this);
-    // painter.fillRect(rect(), Qt::white);
+
     painter.translate(painter_offset_ / 2, painter_offset_ / 2);
     painter.setRenderHint(QPainter::Antialiasing);
-    QPainterPath path, path2;
 
-    path.moveTo(box_size_ / 2, 0);
-    path.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, -pd);
-    QPen pen, pen2;
-    pen.setCapStyle(Qt::FlatCap);
-    pen.setColor(QColor("#30b7e0"));
-    pen.setWidth(pen_stroke_);
-    painter.strokePath(path, pen);
+    QPainterPath progress_path, placeholder_path;
 
+    progress_path.moveTo(box_size_ / 2, 0);
+    progress_path.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, -pd);
 
-    path2.moveTo(box_size_ / 2, 0);
-    pen2.setWidth(pen_stroke_);
-    pen2.setColor(QColor("#d7d7d7"));
-    pen2.setCapStyle(Qt::FlatCap);
-    pen2.setDashPattern(QVector<qreal>{0.5, 1.105});
-
-    path2.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, rd);
-    pen2.setDashOffset(2.2);
-    painter.strokePath(path2, pen2);
+    placeholder_path.moveTo(box_size_ / 2, 0);
+    placeholder_path.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, rd);
+    
+    if(progress_ != 0)
+        painter.strokePath(progress_path, progress_pen_);
+    painter.strokePath(placeholder_path, placeholder_pen_);
 }
 
 
@@ -47,65 +55,85 @@ void CPBar::paintEvent(QPaintEvent *) {
 RecordDot::RecordDot(QWidget * parent) : QWidget(parent){
     QWidget::setMinimumSize(box_size_, box_size_);
     record_ = false;
+
+    timer_ = new QTimer(this);
+    timer_->setInterval(100);
+
+    connect(timer_, SIGNAL(timeout()), this, SLOT(update()));
+
+    ellipse_path_.addEllipse(QRect(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_));
+
+    circle_path_.moveTo(box_size_ / 2, 0);
+    circle_path_.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, 360);
+
+    QColor red, red_dark;
+    QColor gray, gray_dark;
+    red.setHsl(0, 255, 127, 255);
+    red_dark.setHsl(0, 255, 64, 255);
+
+    gray.setHsl(0, 0, 127, 255);
+    gray_dark.setHsl(0, 0, 64, 255);
 }
 
 void RecordDot::setRecordStatus(bool record){
     record_ = record;
     QWidget::update();
+    if(record)
+        timer_->start();
+    else
+        timer_->stop();
+
 }
 
 void RecordDot::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.translate(painter_offset_ / 2, painter_offset_ / 2);
-    // painter.drawEllipse(QRect(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_));
 
-    QPainterPath ellipse_path;
     QBrush ellipse_brush;
-    if(record_){
-        ellipse_brush = QBrush(Qt::red);
-    }
-    else{
-        ellipse_brush = QBrush(QColor("#a6a6a6"));
-    }
-
-    ellipse_path.addEllipse(QRect(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_));
-    painter.fillPath(ellipse_path, ellipse_brush);
-    
-    QPainterPath gradient_path;
-
-    QRadialGradient radialGrad(QPointF((box_size_ - painter_offset_) / 2, (box_size_ - painter_offset_) / 2), (box_size_ - painter_offset_) / 2);
-    if(record_){
-        radialGrad.setColorAt(0, QColor("#ff5959"));
-        radialGrad.setColorAt(0.5, QColor("#ff5959"));
-        radialGrad.setColorAt(1, Qt::red);
-    }
-    else{
-        radialGrad.setColorAt(0, QColor("#e0e0e0"));
-        radialGrad.setColorAt(0.5, QColor("#e0e0e0"));
-        radialGrad.setColorAt(1, QColor("#a6a6a6"));  
-    }
-
-    painter.fillPath(ellipse_path, radialGrad);
-
-    QPainterPath path;
+    QRadialGradient radial_gradient(QPointF((box_size_ - painter_offset_) / 2, (box_size_ - painter_offset_) / 2), (box_size_ - painter_offset_) / 2);
     QPen pen;
-
     pen.setWidth(pen_stroke_);
+
     if(record_){
-        pen.setColor(QColor("#730d0d"));
+        QColor red, red_dark, red_light;
+
+        red.setHsl(0, 255, 127, 255);
+        red_dark.setHsl(0, 255, 64, 255);
+
+        // set red_light based on time
+        auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        double amplitude = 30;
+        double period = milliseconds * M_PI / 1000;
+
+        uint8_t light = 190 + std::sin(period) * amplitude;
+        red_light.setHsl(0, 255, light, 255);
+
+        ellipse_brush = QBrush(red);
+
+        radial_gradient.setColorAt(0, red_light);
+        radial_gradient.setColorAt(0.5, red_light);
+        radial_gradient.setColorAt(1, red);
+
+        pen.setColor(red_dark);
     }
     else{
-        pen.setColor(QColor("#6e6e6e"));
+        QColor gray, gray_dark, gray_light;
+
+        gray.setHsl(0, 0, 127, 255);
+        gray_dark.setHsl(0, 0, 64, 255);
+        gray_light.setHsl(0, 0, 190, 255);
+
+        ellipse_brush = QBrush(gray);
+
+        radial_gradient.setColorAt(0, gray_light);
+        radial_gradient.setColorAt(0.5, gray_light);
+        radial_gradient.setColorAt(1, gray);
+
+        pen.setColor(gray_dark);
     }
-    pen.setWidth(pen_stroke_);
 
-    auto inner_circle_offset = pen_stroke_;
-    // path.moveTo(box_size_ / 2 + inner_circle_offset, inner_circle_offset);
-    path.moveTo(box_size_ / 2, 0);
-    path.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, 360);
-    // path.arcTo(QRectF(0, 0, box_size_ - painter_offset_ - inner_circle_offset, box_size_ - painter_offset_ - inner_circle_offset), 90, -360);
-
-    painter.strokePath(path, pen);
+    painter.fillPath(ellipse_path_, radial_gradient);
+    painter.strokePath(circle_path_, pen);
 }
 
 }

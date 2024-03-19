@@ -34,6 +34,9 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void saveSettings(qt_gui_cpp::Settings& plugin_settings, qt_gui_cpp::Settings& instance_settings) const override;
         void restoreSettings(const qt_gui_cpp::Settings& plugin_settings, const qt_gui_cpp::Settings& instance_settings) override;
 
+    signals:
+        void sendRecordStatus(bool record);
+
     protected slots:
         void onRecord();
         void onStopRecord();
@@ -46,6 +49,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void checkOutFile(const QString &file_path);
 
     private:
+        bool isFilePathValid(QString path);
         void addRowToTable(TableRow row);
         void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
 

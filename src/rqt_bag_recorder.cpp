@@ -4,6 +4,7 @@
 
 #include <QTextStream>
 #include <QMessageBox>
+#include <QTimer>
 #include "yaml-cpp/yaml.h"
 
 namespace rqt_bag_recorder{
@@ -68,6 +69,8 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(ui_.set_output, SIGNAL(pressed()), this, SLOT(onSetOutput()));
     connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(checkOutFile(const QString &)));
 
+    connect(this, SIGNAL(sendRecordStatus(bool)), ui_.record_w, SLOT(setRecordStatus(bool)));
+
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -88,6 +91,7 @@ void BagRecorder::checkOutFile(const QString &file_path){
         palette.setColor(QPalette::Base, Qt::red);
         palette.setColor(QPalette::Text, Qt::black);
         ui_.out_file_box->setPalette(palette);
+        lock_recording_ = true;
     }
     else{
         out_folder_path_ = file_path.toStdString();
@@ -95,6 +99,7 @@ void BagRecorder::checkOutFile(const QString &file_path){
         palette.setColor(QPalette::Base, Qt::white);
         palette.setColor(QPalette::Text, Qt::black);
         ui_.out_file_box->setPalette(palette);
+        lock_recording_ = false;
     }
 }
 
@@ -134,11 +139,7 @@ void BagRecorder::onSetOutput(){
 
 void BagRecorder::onStopRecord(){
     recording_ = false;
-
-    QPalette palette;
-    palette.setColor(QPalette::Base, Qt::red);
-    palette.setColor(QPalette::Text, Qt::black);
-    ui_.out_file_box->setPalette(palette);
+    checkOutFile(out_folder_path_);
 }
 
 void BagRecorder::onRecord(){
@@ -147,9 +148,7 @@ void BagRecorder::onRecord(){
         return;
     }
 
-    writer_->open(out_folder_path_);
-    recording_ = true;
-    ui_.record_w->setRecordStatus(recording_);
+    if(lock_recording_) return;
 
     // first remove all subscriptions of deselected items and set status
     // QTreeWidgetItemIterator it(ui_.topic_tree);
@@ -173,6 +172,10 @@ void BagRecorder::onRecord(){
     //     ++it;
     // }
 
+    writer_->open(out_folder_path_);
+    recording_ = true;
+    emit sendRecordStatus(recording_);
+
     // spin ros and keep eventloop going
     while(recording_){
         executor_.spin_some();
@@ -180,8 +183,7 @@ void BagRecorder::onRecord(){
     }
 
     writer_->close();
-    
-    ui_.record_w->setRecordStatus(recording_);
+    emit sendRecordStatus(recording_);
 
     // rclcpp::QoS qos(10);
     // rclcpp::SubscriptionOptions options;
