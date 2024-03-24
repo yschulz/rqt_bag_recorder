@@ -94,6 +94,9 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.o_mx_length_spin->setDisabled(true);
     ui_.o_mx_length_spin->setMaximum(std::numeric_limits<int>::max());
 
+    connect(ui_.select_all_button, SIGNAL(pressed()), this, SLOT(onSelectAll()));
+    connect(ui_.deselect_all_button, SIGNAL(pressed()), this, SLOT(onDeselectAll()));
+
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -106,6 +109,22 @@ void BagRecorder::saveSettings(qt_gui_cpp::Settings& /*plugin_settings*/, qt_gui
 
 void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*/, const qt_gui_cpp::Settings& /*instance_settings*/){
 
+}
+
+void BagRecorder::onSelectAll(){
+    QTreeWidgetItemIterator it = QTreeWidgetItemIterator(ui_.topic_tree);
+    while(*it){
+        (*it)->setCheckState(0, Qt::Checked);
+        ++it;
+    }
+}
+
+void BagRecorder::onDeselectAll(){
+    QTreeWidgetItemIterator it = QTreeWidgetItemIterator(ui_.topic_tree);
+    while(*it){
+        (*it)->setCheckState(0, Qt::Unchecked);
+        ++it;
+    }
 }
 
 void BagRecorder::onBagSizeSpin(int value){
@@ -194,6 +213,8 @@ void BagRecorder::onLoadConfig(){
     topic_info_ = node_->get_topic_names_and_types();
 
     QString config_path =  QFileDialog::getOpenFileName(widget_, tr("Open Config file"), "/home", tr("Images (*.yaml *.yml)"));
+    if(config_path.isEmpty()) return;
+
     YAML::Node config = YAML::LoadFile(config_path.toStdString());
 
     QString s;
@@ -239,6 +260,7 @@ void BagRecorder::updateCompressionOptions(){
 
 void BagRecorder::onRecord(){
 
+    // first we evaluate what is happening while it is recording
     if(recording_){
         recording_ = false;
         checkOutFile(QString::fromStdString(out_folder_path_));
@@ -255,27 +277,26 @@ void BagRecorder::onRecord(){
 
     ui_.record_button->setText("Stop");
 
-    // first remove all subscriptions of deselected items and set status
-    // QTreeWidgetItemIterator it(ui_.topic_tree);
-    // while(*it){
-    //     if((*it)->checkState(0) == Qt::Unchecked){
-    //         std::string topic = (*it)->text(3).toStdString();
-    //         subs_[topic].reset();
+    // now go recording
+    updateSubscribers();
 
-    //         (*it)->setText(1, "idle");
-
-    //         (*it)->setBackground(1, QBrush(Qt::gray));
-    //     }
-    //     else{
-    //         (*it)->setText(1, "recording...");
-    //         QBrush recording_brush;
-    //         QColor brown(210, 147, 84, 255);
-    //         recording_brush.setColor(brown);
-    //         (*it)->setBackground(1, recording_brush);
-    //         (*it)->setBackground(1, recording_brush);
-    //     }
-    //     ++it;
-    // }
+    // give status update on topics
+    QTreeWidgetItemIterator it(ui_.topic_tree);
+    while(*it){
+        if((*it)->checkState(0) == Qt::Unchecked){
+            (*it)->setText(1, "idle");
+            (*it)->setBackground(1, QBrush(Qt::gray));
+        }
+        else{
+            (*it)->setText(1, "recording...");
+            QBrush recording_brush;
+            QColor brown(210, 147, 84, 255);
+            recording_brush.setColor(brown);
+            (*it)->setBackground(1, recording_brush);
+            (*it)->setBackground(1, recording_brush);
+        }
+        ++it;
+    }
 
     // reset writer and create either compressing writer or simple sequential
     writer_.reset();
@@ -301,32 +322,18 @@ void BagRecorder::onRecord(){
     writer_->close();
     emit sendRecordStatus(recording_);
 
-    // rclcpp::QoS qos(10);
-    // rclcpp::SubscriptionOptions options;
-    // options.callback_group = cb_group_;
-
-
-    // now create subscriptions again
-
-    // it = QTreeWidgetItemIterator(ui_.topic_tree);
-    // while(*it){
-    //     if((*it)->checkState(0) == Qt::Unchecked){
-    //         std::string topic = (*it)->text(3).toStdString();
-    //         std::string type = topic_info_[topic][0];
-
-    //         std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
-    //         subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
-    //     }
-    //     else{
-    //         (*it)->setText(1, "Done!");
-    //         QBrush recording_brush;
-    //         QColor yellow(245, 235, 94, 1);
-    //         recording_brush.setColor(yellow);
-    //         (*it)->setBackground(1, recording_brush);
-    //     }
-
-    //     ++it;
-    // }
+    // update status after recording
+    QTreeWidgetItemIterator it_after = QTreeWidgetItemIterator(ui_.topic_tree);
+    while(*it_after){
+        if((*it_after)->checkState(0) == Qt::Checked){
+            (*it_after)->setText(1, "Done!");
+            QBrush recording_brush;
+            QColor yellow(245, 235, 94, 1);
+            recording_brush.setColor(yellow);
+            (*it_after)->setBackground(1, recording_brush);
+        }
+        ++it_after;
+    }
 }
 
 void BagRecorder::onTestTopics(){
@@ -431,6 +438,34 @@ void BagRecorder::genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage
     rclcpp::Time time_stamp = node_->get_clock()->now();
 
     writer_->write(msg, topic, type, time_stamp);
+}
+
+void BagRecorder::updateSubscribers(){
+    // first remove all subscriptions of deselected items and set status
+    QTreeWidgetItemIterator it(ui_.topic_tree);
+    while(*it){
+        std::string topic = (*it)->text(3).toStdString();
+        std::string type = topic_info_[topic][0];
+
+        if((*it)->checkState(0) == Qt::Unchecked){
+
+            // keep hash element but reset pointer
+            if(subs_[topic])
+                subs_[topic].reset();
+
+        }
+        else if((*it)->checkState(0) == Qt::Checked){
+            if(!subs_[topic]){
+                rclcpp::QoS qos(10);
+                rclcpp::SubscriptionOptions options;
+                options.callback_group = cb_group_;
+
+                std::function<void(std::shared_ptr<rclcpp::SerializedMessage> msg)> callback_function = std::bind(&BagRecorder::genericTimerCallback, this, std::placeholders::_1, topic, type);
+                subs_[topic] = node_->create_generic_subscription(topic, type, qos, callback_function, options);
+            }
+        }
+        ++it;
+    }
 }
 
 void BagRecorder::addRowToTable(TableRow row){

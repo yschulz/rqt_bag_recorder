@@ -87,19 +87,6 @@ install(DIRECTORY resource
   DESTINATION share/${PROJECT_NAME}
 )
 
-
-add_executable(writer_test src/test_bag_rec.cpp)
-ament_target_dependencies(writer_test
-  rclcpp
-  rosbag2_cpp
-  std_msgs
-)
-
-install(TARGETS
-    writer_test
-  	DESTINATION lib/${PROJECT_NAME}
-)
-
 pluginlib_export_plugin_description_file(rqt_gui "plugin.xml")
 
 # Export old-style CMake variables

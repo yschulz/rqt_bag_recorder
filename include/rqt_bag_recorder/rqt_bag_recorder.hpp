@@ -52,6 +52,9 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onSetOutput();
         void checkOutFile(const QString &file_path);
 
+        void onSelectAll();
+        void onDeselectAll();
+
         void onToggleCompression(int state);
         void onToggleBagSize(int state);
         void onToggleBagLength(int state);
@@ -63,6 +66,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         bool isFilePathValid(QString path);
         void addRowToTable(TableRow row);
         void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
+
+        void updateSubscribers();
 
         void updateCompressionOptions();
 
