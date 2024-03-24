@@ -1,0 +1,9 @@
+ag_name: "going_forward"
+description: "this bag is goint ot show how we drive forward mostly honestly. not sure yet what else what we are doing when going this way but this will definitely work"
+format: "sqlite"
+compression: false
+max_bag_length: false
+max_bag_size: false
+topics:
+ - "/rosout"
+ - "/parameter"

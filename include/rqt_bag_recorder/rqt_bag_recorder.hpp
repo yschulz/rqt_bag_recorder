@@ -27,6 +27,12 @@ struct TableRow{
     QString type;
     QString topic;
 };
+
+struct SetItem{
+    QFileInfo file_info;
+    YAML::Node yaml_node;
+    QPushButton* set_button;
+};
     
 class BagRecorder: public rqt_gui_cpp::Plugin{
     Q_OBJECT
@@ -54,6 +60,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
         void onSelectAll();
         void onDeselectAll();
+
+        void onLoadSet();
 
         void onToggleCompression(int state);
         void onToggleBagSize(int state);
@@ -92,6 +100,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         bool recording_;
         bool lock_recording_;
         std::string out_folder_path_;
+
+        QHash<QString, SetItem> set_item_hash_;
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;

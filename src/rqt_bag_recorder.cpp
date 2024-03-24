@@ -97,6 +97,19 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(ui_.select_all_button, SIGNAL(pressed()), this, SLOT(onSelectAll()));
     connect(ui_.deselect_all_button, SIGNAL(pressed()), this, SLOT(onDeselectAll()));
 
+
+    QStringList set_labels;
+    set_labels << "name" << "set";
+    ui_.set_tree->setColumnCount(set_labels.size());
+    ui_.set_tree->setHeaderLabels(set_labels);
+
+    ui_.set_tree->resize(400, ui_.set_tree->height());
+    ui_.set_tree->setFixedWidth(400);
+    ui_.set_tree->setColumnWidth(0, 340);
+    ui_.set_tree->setColumnWidth(1, 50);
+
+    connect(ui_.load_set_button, SIGNAL(pressed()), this, SLOT(onLoadSet()));
+
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -109,6 +122,32 @@ void BagRecorder::saveSettings(qt_gui_cpp::Settings& /*plugin_settings*/, qt_gui
 
 void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*/, const qt_gui_cpp::Settings& /*instance_settings*/){
 
+}
+
+void BagRecorder::onLoadSet(){
+    QString config_path = QFileDialog::getExistingDirectory(widget_, "Loading recording set", "/home", QFileDialog::Option::ShowDirsOnly);
+    QDir config_dir(config_path);
+
+    QStringList yaml_filter = {"*.yaml"};
+    
+    for (const QFileInfo &file : config_dir.entryInfoList(yaml_filter, QDir::Files)){
+        set_item_hash_.insert(file.fileName(), {file, YAML::LoadFile(file.absoluteFilePath().toStdString()), new QPushButton("Set")});
+        QTreeWidgetItem *item = new QTreeWidgetItem(ui_.set_tree);
+        QTreeWidgetItem *child_item = new QTreeWidgetItem(item);
+
+        QLabel* label = new QLabel(ui_.set_tree);
+        label->setText(QString::fromStdString(set_item_hash_.value(file.fileName()).yaml_node["description"].as<std::string>()));
+        label->setWordWrap(true);
+
+
+        item->addChild(child_item);
+        item->setText(0, file.fileName());
+
+        ui_.set_tree->addTopLevelItem(item);
+
+        ui_.set_tree->setItemWidget(item, 1, set_item_hash_.value(file.fileName()).set_button);
+        ui_.set_tree->setItemWidget(child_item, 0, label);
+    }
 }
 
 void BagRecorder::onSelectAll(){
