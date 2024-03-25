@@ -299,10 +299,10 @@ void BagRecorder::onToggleCompression(int state){
 }
 
 void BagRecorder::onBagNameChanged(const QString &bag_name){
-    if(base_output_folder_.isEmpty()){
-        QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
-        return;
-    }
+    // if(base_output_folder_.isEmpty()){
+    //     QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
+    //     return;
+    // }
 
     QDir full_dir(base_output_folder_);
     bag_name_ = bag_name;
@@ -410,11 +410,18 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::updateCompressionOptions(){
-    compression_options_.compression_format = ui_.o_compression_format_cbox->currentText().toStdString();
-    if(ui_.o_compression_format_cbox->currentText() == "file"){
+    // compression_options_.compression_format = ui_.o_compression_format_cbox->currentText().toStdString();
+    if(ui_.o_compression_mode_cbox->currentText() == QString("Lz4")){
+        compression_options_.compression_format = "fake_comp";
+    }
+    else{
+        compression_options_.compression_format = "zstd";
+    }
+
+    if(ui_.o_compression_mode_cbox->currentText() == QString("file")){
         compression_options_.compression_mode = rosbag2_compression::CompressionMode::FILE;
     }
-    else if(ui_.o_compression_format_cbox->currentText() == "message"){
+    else if(ui_.o_compression_mode_cbox->currentText() == QString("message")){
         compression_options_.compression_mode = rosbag2_compression::CompressionMode::MESSAGE;
     }
     else{

@@ -1,6 +1,12 @@
 # RQT Bag recorder
 
-This package implements an rqt plugin that helps recording bags in a nice and easy way. The basic idea for this plugin comes from the problem many teams face when data gathering is conducted by someone else.
+This package implements an rqt plugin that helps recording bags in a nice and easy way. The basic idea for this plugin comes from the problem many teams face when data gathering is conducted by someone else than the one interested in the data. This plugin gives the person who is doing the recording all the tools to make informed decisions, debug the current system and run through tasks quick and easy. It is also taking away the responsibility of painstakingly setting up scripts and commands by hand and puts it on the stakeholder that requested the data.
+
+Besides this, the tool can also be handy in quick recording sessions when the user does not want to fumble with the command line interface.
+
+## Package inspiration
+
+This package is of course inspired by the ros native `rqt_bag` [repo](https://github.com/ros-visualization/rqt_bag/tree/humble).
 
 ## Installing and running the plugin:
 ```
@@ -39,3 +45,5 @@ rqt --force-discover
 ![Loading a configuration set](images/recording.png)
 
 2. This list view gives the user easy access and instructions for the tasks at hand. Each configuration can be added with a *discription* field that leaves instructions about the test setup for the user. The discription can be accessed through the drop down arrow next to the file name.
+
+3. The *Set* button next to the filename lets the user easily swap between recording tasks that were defined inside the configuration files.
