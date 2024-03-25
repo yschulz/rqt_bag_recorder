@@ -131,11 +131,56 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 }
 
 void BagRecorder::setConfig(const YAML::Node& root){
+    ui_.bag_name_box->setText(QString::fromStdString(root["bag_name"].as<std::string>()));
 
+    onDeselectAll();
+
+    if(root["compression"] && root["compression"]["compression_format"] && root["compression"]["compression_mode"]){
+        ui_.o_compression_toggle->setCheckState(Qt::Checked);
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText(QString::fromStdString(root["compression"]["compression_format"].as<std::string>())));
+        ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText(QString::fromStdString(root["compression"]["compression_mode"].as<std::string>())));
+
+    }
+    else
+        ui_.o_compression_toggle->setCheckState(Qt::Unchecked);
+
+
+    if(root["max_bag_length"]){
+        ui_.o_mx_length_toggle->setCheckState(Qt::Checked);
+        ui_.o_mx_length_spin->setValue(root["max_bag_length"].as<int>());
+    }
+    else
+        ui_.o_mx_length_toggle->setCheckState(Qt::Unchecked);
+
+    if(root["max_bag_size"]){
+        ui_.o_mx_size_toggle->setCheckState(Qt::Checked);
+        ui_.o_mx_size_spin->setValue(root["max_bag_size"].as<int>());
+    }
+    else
+        ui_.o_mx_size_toggle->setCheckState(Qt::Unchecked);
+
+    QString s;
+    QTextStream ss(&s);
+
+    for (const auto &topic : root["topics"]){
+        auto topic_string = topic.as<std::string>();
+        auto tree_item_list = ui_.topic_tree->findItems(QString::fromStdString(topic_string), Qt::MatchExactly, 3);
+
+        if(tree_item_list.isEmpty()){
+            ss << QString::fromStdString(topic_string) << "\n";
+            continue;
+        }
+
+        tree_item_list.at(0)->setCheckState(0, Qt::Checked);
+    }
+
+    if(!s.isEmpty()){
+        QMessageBox::warning(widget_, "Topics skipped!", "Topics are not in the list update your ros environment and the topic list and try again:\n" + s);
+    }
 }
 
 void BagRecorder::onSetButtonClicked(int button_id){
-    std::cout << button_id << "\n";
+    setConfig(set_item_hash_.value(button_id).yaml_node);
 }
 
 void BagRecorder::onLoadSet(){
@@ -347,6 +392,9 @@ void BagRecorder::onRecord(){
 
     // now go recording
     updateSubscribers();
+
+    QDir(base_output_folder_).mkpath(base_output_folder_);
+
 
     // give status update on topics
     QTreeWidgetItemIterator it(ui_.topic_tree);

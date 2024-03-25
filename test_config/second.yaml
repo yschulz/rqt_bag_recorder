@@ -1,9 +1,6 @@
-ag_name: "going_reverse"
+bag_name: "going_reverse"
 description: "hello this different this bag is goint ot show how we drive forward mostly honestly. not sure yet what else what we are doing when going this way but this will definitely work"
 format: "sqlite"
-compression: false
-max_bag_length: false
-max_bag_size: false
+max_bag_size: 100000
 topics:
- - "/rosout"
- - "/parameter"
+ - "/parameter_events"

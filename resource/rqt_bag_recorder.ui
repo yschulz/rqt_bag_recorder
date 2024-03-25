@@ -153,10 +153,18 @@
       </widget>
      </item>
      <item row="0" column="11">
-      <widget class="QSpinBox" name="o_mx_size_spin"/>
+      <widget class="QSpinBox" name="o_mx_size_spin">
+       <property name="maximum">
+        <number>2147483647</number>
+       </property>
+      </widget>
      </item>
      <item row="2" column="11">
-      <widget class="QSpinBox" name="o_mx_length_spin"/>
+      <widget class="QSpinBox" name="o_mx_length_spin">
+       <property name="maximum">
+        <number>2147483647</number>
+       </property>
+      </widget>
      </item>
      <item row="0" column="10">
       <widget class="QCheckBox" name="o_mx_size_toggle">
