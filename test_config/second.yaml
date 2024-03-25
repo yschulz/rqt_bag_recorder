@@ -1,0 +1,6 @@
+bag_name: "going_reverse"
+description: "hello this different this bag is goint ot show how we drive forward mostly honestly. not sure yet what else what we are doing when going this way but this will definitely work"
+format: "sqlite"
+max_bag_size: 100000
+topics:
+ - "/parameter_events"

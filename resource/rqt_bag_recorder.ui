@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1123</width>
-    <height>500</height>
+    <width>1505</width>
+    <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -33,17 +33,35 @@
    </item>
    <item>
     <layout class="QGridLayout" name="options_layout">
-     <item row="0" column="9">
-      <widget class="QSpinBox" name="o_mx_size_spin"/>
+     <item row="2" column="12">
+      <widget class="Line" name="line_3">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+      </widget>
      </item>
-     <item row="0" column="12">
+     <item row="2" column="14">
+      <widget class="QLabel" name="o_compressio_mode_label">
+       <property name="text">
+        <string> - Mode</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="9">
+      <widget class="Line" name="line_7">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="15">
       <widget class="QComboBox" name="o_compression_format_cbox">
        <property name="editable">
         <bool>false</bool>
        </property>
       </widget>
      </item>
-     <item row="0" column="13">
+     <item row="0" column="16">
       <spacer name="horizontalSpacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
@@ -56,62 +74,22 @@
        </property>
       </spacer>
      </item>
-     <item row="0" column="10">
-      <widget class="QCheckBox" name="o_compression_toggle">
-       <property name="text">
-        <string>Compression</string>
+     <item row="0" column="5">
+      <widget class="Line" name="line_4">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
        </property>
       </widget>
      </item>
-     <item row="2" column="9">
-      <widget class="QSpinBox" name="o_mx_length_spin"/>
-     </item>
-     <item row="0" column="11">
-      <widget class="QLabel" name="o_compression_format_label">
-       <property name="text">
-        <string> - Format</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="12">
-      <widget class="QComboBox" name="o_compression_mode_cbox"/>
-     </item>
-     <item row="2" column="8">
+     <item row="2" column="10">
       <widget class="QCheckBox" name="o_mx_length_toggle">
        <property name="text">
         <string>Maximum Bag length in seconds</string>
        </property>
       </widget>
      </item>
-     <item row="0" column="4">
-      <widget class="rqt_bag_recorder::RecordDot" name="record_w" native="true">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="4">
-      <widget class="rqt_bag_recorder::CPBar" name="test_w" native="true">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="6">
+     <item row="2" column="7">
       <widget class="QComboBox" name="o_format_cbox"/>
-     </item>
-     <item row="2" column="0">
-      <widget class="QPushButton" name="test_topics_button">
-       <property name="text">
-        <string>Test Topics</string>
-       </property>
-      </widget>
      </item>
      <item row="0" column="0">
       <widget class="QPushButton" name="record_button">
@@ -126,34 +104,117 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="11">
-      <widget class="QLabel" name="o_compressio_mode_label">
+     <item row="2" column="15">
+      <widget class="QComboBox" name="o_compression_mode_cbox"/>
+     </item>
+     <item row="2" column="6">
+      <widget class="QLabel" name="o_format_label">
        <property name="text">
-        <string> - Mode</string>
+        <string>Bag Format</string>
        </property>
       </widget>
      </item>
-     <item row="0" column="8">
+     <item row="0" column="12">
+      <widget class="Line" name="line_2">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="13">
+      <widget class="QCheckBox" name="o_compression_toggle">
+       <property name="text">
+        <string>Compression</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QPushButton" name="test_topics_button">
+       <property name="text">
+        <string>Test Topics</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="7">
+      <widget class="QLineEdit" name="out_file_box">
+       <property name="placeholderText">
+        <string>output base folder</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="4">
+      <widget class="rqt_bag_recorder::CPBar" name="test_w" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="11">
+      <widget class="QSpinBox" name="o_mx_size_spin">
+       <property name="maximum">
+        <number>2147483647</number>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="11">
+      <widget class="QSpinBox" name="o_mx_length_spin">
+       <property name="maximum">
+        <number>2147483647</number>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="10">
       <widget class="QCheckBox" name="o_mx_size_toggle">
        <property name="text">
         <string>Maximum Bag size in Bytes</string>
        </property>
       </widget>
      </item>
-     <item row="0" column="6">
-      <widget class="QLineEdit" name="out_file_box"/>
+     <item row="0" column="4">
+      <widget class="rqt_bag_recorder::RecordDot" name="record_w" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
      </item>
-     <item row="0" column="5">
+     <item row="2" column="5">
+      <widget class="Line" name="line_5">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="9">
+      <widget class="Line" name="line_6">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="6">
       <widget class="QPushButton" name="set_output">
        <property name="text">
         <string>Select Output Folder</string>
        </property>
       </widget>
      </item>
-     <item row="2" column="5">
-      <widget class="QLabel" name="o_format_label">
+     <item row="0" column="14">
+      <widget class="QLabel" name="o_compression_format_label">
        <property name="text">
-        <string>Bag Format</string>
+        <string> - Format</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="8">
+      <widget class="QLineEdit" name="bag_name_box">
+       <property name="placeholderText">
+        <string>bag name</string>
        </property>
       </widget>
      </item>
@@ -162,28 +223,74 @@
    <item>
     <layout class="QHBoxLayout" name="main_layout">
      <item>
-      <widget class="QTreeWidget" name="treeWidget">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <column>
-        <property name="text">
-         <string notr="true">1</string>
-        </property>
-       </column>
-      </widget>
+      <layout class="QVBoxLayout" name="set_layout">
+       <item>
+        <layout class="QHBoxLayout" name="set_load_layout">
+         <item>
+          <widget class="QPushButton" name="load_set_button">
+           <property name="text">
+            <string>Load Set</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="export_set_bottun">
+           <property name="text">
+            <string>Export Set</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="set_tree">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <column>
+          <property name="text">
+           <string notr="true">1</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+      </layout>
      </item>
      <item>
       <layout class="QVBoxLayout" name="tree_layout">
        <item>
-        <widget class="QLineEdit" name="topic_filter">
-         <property name="placeholderText">
-          <string>search topics</string>
-         </property>
-        </widget>
+        <layout class="QHBoxLayout" name="filter_layout">
+         <item>
+          <widget class="QPushButton" name="select_all_button">
+           <property name="text">
+            <string>Select All</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="deselect_all_button">
+           <property name="text">
+            <string>Deselect All</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="topic_filter">
+           <property name="placeholderText">
+            <string>search topics</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
        <item>
         <widget class="QTreeWidget" name="topic_tree">
@@ -195,30 +302,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QComboBox" name="topics_combo_box">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="toolTip">
-          <string>Type to search topics</string>
-         </property>
-         <property name="editable">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QHBoxLayout" name="topic_layout">
-         <item>
-          <widget class="QPushButton" name="add_topic_button">
-           <property name="text">
-            <string>Add Topic</string>
-           </property>
-          </widget>
-         </item>
+        <layout class="QHBoxLayout" name="add_topic_layout">
          <item>
           <widget class="QPushButton" name="refresh_topics_button">
            <property name="text">
@@ -227,9 +311,43 @@
           </widget>
          </item>
          <item>
+          <widget class="QComboBox" name="topics_combo_box">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Type to search topics</string>
+           </property>
+           <property name="editable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="add_topic_button">
+           <property name="text">
+            <string>Add Topic</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="topic_layout">
+         <item>
           <widget class="QPushButton" name="add_all_topics">
            <property name="text">
             <string>Add All Topics</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="Line" name="line">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
            </property>
           </widget>
          </item>
