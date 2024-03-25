@@ -12,9 +12,10 @@ namespace rqt_bag_recorder{
 BagRecorder::BagRecorder(): 
     rqt_gui_cpp::Plugin(), 
     widget_(nullptr),
-    out_folder_path_(""),
+    b_group_(nullptr),
+    // out_folder_path_(""),
     converter_options_({rmw_get_serialization_format(), rmw_get_serialization_format()}),
-    storage_options_({out_folder_path_, "sqlite3"}){
+    storage_options_({"", "sqlite3"}){
 
     setObjectName("BagRecorder");
 
@@ -35,6 +36,8 @@ BagRecorder::~BagRecorder(){}
 void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     widget_ = new QWidget();
     ui_.setupUi(widget_);
+
+    b_group_ = new QButtonGroup(ui_.set_tree);
 
     if (context.serialNumber() > 1) {
         widget_->setWindowTitle(widget_->windowTitle() + " (" + QString::number(context.serialNumber()) + ")");
@@ -64,7 +67,8 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
 
     connect(ui_.set_output, SIGNAL(pressed()), this, SLOT(onSetOutput()));
-    connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(checkOutFile(const QString &)));
+    connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(onBasePathChanged(const QString &)));
+    connect(ui_.bag_name_box, SIGNAL(textChanged(const QString&)), this, SLOT(onBagNameChanged(const QString &)));
 
     connect(this, SIGNAL(sendRecordStatus(bool)), ui_.record_w, SLOT(setRecordStatus(bool)));
 
@@ -110,6 +114,8 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
     connect(ui_.load_set_button, SIGNAL(pressed()), this, SLOT(onLoadSet()));
 
+    connect(b_group_, SIGNAL(idClicked(int)), this, SLOT(onSetButtonClicked(int)));
+
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -124,6 +130,14 @@ void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*
 
 }
 
+void BagRecorder::setConfig(const YAML::Node& root){
+
+}
+
+void BagRecorder::onSetButtonClicked(int button_id){
+    std::cout << button_id << "\n";
+}
+
 void BagRecorder::onLoadSet(){
     QString config_path = QFileDialog::getExistingDirectory(widget_, "Loading recording set", "/home", QFileDialog::Option::ShowDirsOnly);
     QDir config_dir(config_path);
@@ -131,12 +145,13 @@ void BagRecorder::onLoadSet(){
     QStringList yaml_filter = {"*.yaml"};
     
     for (const QFileInfo &file : config_dir.entryInfoList(yaml_filter, QDir::Files)){
-        set_item_hash_.insert(file.fileName(), {file, YAML::LoadFile(file.absoluteFilePath().toStdString()), new QPushButton("Set")});
+        set_item_hash_.insert(total_set_items_, {file, YAML::LoadFile(file.absoluteFilePath().toStdString()), new QPushButton("Set")});
         QTreeWidgetItem *item = new QTreeWidgetItem(ui_.set_tree);
         QTreeWidgetItem *child_item = new QTreeWidgetItem(item);
+        b_group_->addButton(set_item_hash_.value(total_set_items_).set_button, total_set_items_);
 
         QLabel* label = new QLabel(ui_.set_tree);
-        label->setText(QString::fromStdString(set_item_hash_.value(file.fileName()).yaml_node["description"].as<std::string>()));
+        label->setText(QString::fromStdString(set_item_hash_.value(total_set_items_).yaml_node["description"].as<std::string>()));
         label->setWordWrap(true);
 
 
@@ -145,8 +160,10 @@ void BagRecorder::onLoadSet(){
 
         ui_.set_tree->addTopLevelItem(item);
 
-        ui_.set_tree->setItemWidget(item, 1, set_item_hash_.value(file.fileName()).set_button);
+        ui_.set_tree->setItemWidget(item, 1, set_item_hash_.value(total_set_items_).set_button);
         ui_.set_tree->setItemWidget(child_item, 0, label);
+
+        total_set_items_++;
     }
 }
 
@@ -228,24 +245,36 @@ void BagRecorder::onToggleCompression(int state){
     }
 }
 
-void BagRecorder::checkOutFile(const QString &file_path){
-    if(QDir(file_path).exists()){
+void BagRecorder::onBagNameChanged(const QString &bag_name){
+    if(base_output_folder_.isEmpty()){
+        QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
+        return;
+    }
+
+    QDir full_dir(base_output_folder_);
+    bag_name_ = bag_name;
+
+    if(QDir(full_dir.filePath(bag_name)).exists()){
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::red);
         palette.setColor(QPalette::Text, Qt::black);
-        ui_.out_file_box->setPalette(palette);
+        ui_.bag_name_box->setPalette(palette);
         lock_recording_ = true;
         storage_options_.uri = std::string("");
     }
     else{
-        out_folder_path_ = file_path.toStdString();
+        // out_folder_path_ = file_path.toStdString();
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::white);
         palette.setColor(QPalette::Text, Qt::black);
-        ui_.out_file_box->setPalette(palette);
+        ui_.bag_name_box->setPalette(palette);
         lock_recording_ = false;
-        storage_options_.uri = out_folder_path_;
+        storage_options_.uri = full_dir.filePath(bag_name).toStdString();
     }
+}
+
+void BagRecorder::onBasePathChanged(const QString &file_path){
+    base_output_folder_ = file_path;
 }
 
 void BagRecorder::onLoadConfig(){
@@ -281,7 +310,7 @@ void BagRecorder::onLoadConfig(){
 void BagRecorder::onSetOutput(){
     QString out_folder_path = QFileDialog::getSaveFileName(widget_, tr("Save File"));
     ui_.out_file_box->setText(out_folder_path);
-    out_folder_path_ = out_folder_path.toStdString();
+    base_output_folder_ = out_folder_path;
 }
 
 void BagRecorder::updateCompressionOptions(){
@@ -302,12 +331,12 @@ void BagRecorder::onRecord(){
     // first we evaluate what is happening while it is recording
     if(recording_){
         recording_ = false;
-        checkOutFile(QString::fromStdString(out_folder_path_));
+        onBagNameChanged(bag_name_);
         ui_.record_button->setText("Record");
         return;
     }
 
-    if(out_folder_path_.empty()){
+    if(base_output_folder_.isEmpty() || bag_name_.isEmpty()){
         QMessageBox::warning(widget_, "No folder was defined!", "Cannot record.");
         return;
     }

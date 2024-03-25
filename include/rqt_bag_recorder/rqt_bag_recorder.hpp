@@ -17,6 +17,7 @@
 #include <QWidget>
 #include <QPainter>
 #include <QPainterPath>
+#include <QButtonGroup>
 
 
 namespace rqt_bag_recorder {
@@ -56,12 +57,16 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void addTopic();
         void addAllTopics();
         void onSetOutput();
-        void checkOutFile(const QString &file_path);
+        void onBasePathChanged(const QString &file_path);
+        void onBagNameChanged(const QString &bag_name);
+
 
         void onSelectAll();
         void onDeselectAll();
 
         void onLoadSet();
+
+        void onSetButtonClicked(int button_id);
 
         void onToggleCompression(int state);
         void onToggleBagSize(int state);
@@ -78,6 +83,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void updateSubscribers();
 
         void updateCompressionOptions();
+
+        void setConfig(const YAML::Node& root);
 
 
         std::unique_ptr<rosbag2_cpp::Writer> writer_;
@@ -99,9 +106,14 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
         bool lock_recording_;
-        std::string out_folder_path_;
+        // std::string out_folder_path_;
+        QString base_output_folder_;
+        QString bag_name_;
 
-        QHash<QString, SetItem> set_item_hash_;
+        QHash<int, SetItem> set_item_hash_;
+
+        QButtonGroup* b_group_;
+        int total_set_items_ = 0;
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;
