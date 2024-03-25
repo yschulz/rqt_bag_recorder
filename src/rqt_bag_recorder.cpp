@@ -6,6 +6,8 @@
 #include <QMessageBox>
 #include <QTimer>
 #include "yaml-cpp/yaml.h"
+#include <iostream>
+#include <fstream>
 
 namespace rqt_bag_recorder{
 
@@ -64,6 +66,7 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
     connect(ui_.load_config, SIGNAL(pressed()), this, SLOT(onLoadConfig()));
+    connect(ui_.save_config, SIGNAL(pressed()), this, SLOT(onSaveConfig()));
 
 
     connect(ui_.set_output, SIGNAL(pressed()), this, SLOT(onSetOutput()));
@@ -196,7 +199,12 @@ void BagRecorder::onLoadSet(){
         b_group_->addButton(set_item_hash_.value(total_set_items_).set_button, total_set_items_);
 
         QLabel* label = new QLabel(ui_.set_tree);
-        label->setText(QString::fromStdString(set_item_hash_.value(total_set_items_).yaml_node["description"].as<std::string>()));
+        if(set_item_hash_.value(total_set_items_).yaml_node["description"]){
+            label->setText(QString::fromStdString(set_item_hash_.value(total_set_items_).yaml_node["description"].as<std::string>()));
+        }
+        else{
+            label->setText("");
+        }
         label->setWordWrap(true);
 
 
@@ -291,10 +299,10 @@ void BagRecorder::onToggleCompression(int state){
 }
 
 void BagRecorder::onBagNameChanged(const QString &bag_name){
-    if(base_output_folder_.isEmpty()){
-        QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
-        return;
-    }
+    // if(base_output_folder_.isEmpty()){
+    //     QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
+    //     return;
+    // }
 
     QDir full_dir(base_output_folder_);
     bag_name_ = bag_name;
@@ -320,6 +328,49 @@ void BagRecorder::onBagNameChanged(const QString &bag_name){
 
 void BagRecorder::onBasePathChanged(const QString &file_path){
     base_output_folder_ = file_path;
+}
+
+void BagRecorder::onSaveConfig(){
+    QString save_file = QFileDialog::getSaveFileName(widget_, "Saving configuration file", "/home", tr("Yaml-file (*.yaml *.yml)"));
+
+    // std::cout << save_file.toStdString() << "\n";
+
+    if(save_file.isEmpty()) return;
+
+    std::ofstream root_file;
+    root_file.open(save_file.toStdString());
+
+    YAML::Emitter out(root_file);
+    out << YAML::BeginMap;
+    out << YAML::Key << "bag_name" << YAML::Value << bag_name_.toStdString();
+    out << YAML::Key << "format" << YAML::Value << ui_.o_format_cbox->currentText().toStdString();
+
+    if(ui_.o_compression_toggle->checkState() == Qt::Checked){
+        out << YAML::Key << "compression" << YAML::BeginMap <<
+                YAML::Key << "compression_format" << YAML::Value << ui_.o_compression_format_cbox->currentText().toStdString() << 
+                YAML::Key << "compression_mode" << YAML::Value << ui_.o_compression_mode_cbox->currentText().toStdString() << YAML::EndMap;
+    }
+
+    if(ui_.o_mx_length_toggle->checkState() == Qt::Checked){
+        out << YAML::Key << "max_bag_length" << YAML::Value << ui_.o_mx_length_spin->value();
+    }
+
+    if(ui_.o_mx_size_toggle->checkState() == Qt::Checked){
+        out << YAML::Key << "max_bag_size" << YAML::Value << ui_.o_mx_size_spin->value();
+    }
+
+    out << YAML::Key << "topics" << YAML::BeginSeq;
+
+    QTreeWidgetItemIterator it(ui_.topic_tree);
+    while(*it){
+        if((*it)->checkState(0) == Qt::Checked){
+            out << (*it)->text(3).toStdString();
+        }
+
+        ++it;
+    }
+    out << YAML::EndSeq << YAML::EndMap;
+    root_file.close();
 }
 
 void BagRecorder::onLoadConfig(){
@@ -359,11 +410,17 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::updateCompressionOptions(){
-    compression_options_.compression_format = ui_.o_compression_format_cbox->currentText().toStdString();
-    if(ui_.o_compression_format_cbox->currentText() == "file"){
+    if(ui_.o_compression_mode_cbox->currentText() == QString("Lz4")){
+        compression_options_.compression_format = "fake_comp";
+    }
+    else{
+        compression_options_.compression_format = "zstd";
+    }
+
+    if(ui_.o_compression_mode_cbox->currentText() == QString("file")){
         compression_options_.compression_mode = rosbag2_compression::CompressionMode::FILE;
     }
-    else if(ui_.o_compression_format_cbox->currentText() == "message"){
+    else if(ui_.o_compression_mode_cbox->currentText() == QString("message")){
         compression_options_.compression_mode = rosbag2_compression::CompressionMode::MESSAGE;
     }
     else{
