@@ -53,6 +53,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onRecord();
         void onTestTopics();
         void onLoadConfig();
+        void onSaveConfig();
+        
         void updateTopicList();
         void addTopic();
         void addAllTopics();
