@@ -6,9 +6,10 @@ Besides this, the tool can also be handy in quick recording sessions when the us
 
 ## Package inspiration
 
-This package is of course inspired by the ros native `rqt_bag` [repo](https://github.com/ros-visualization/rqt_bag/tree/humble).
+This package is of course inspired by the ros native `rqt_bag` [repo](https://github.com/ros-visualization/rqt_bag/tree/humble), but solves the shortcoming of a very clunky record interface. Therefore it leans more to [heuristicus implementation](https://github.com/heuristicus/rqt_bag_helper/tree/main) but ports it to ros2 and c++.
 
 ## Installing and running the plugin:
+Tested on ros humble and ubuntu 22.04
 ```
 mkdir -p ws/src
 cd ws/src

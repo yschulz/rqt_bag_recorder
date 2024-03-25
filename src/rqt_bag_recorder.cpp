@@ -410,7 +410,6 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::updateCompressionOptions(){
-    // compression_options_.compression_format = ui_.o_compression_format_cbox->currentText().toStdString();
     if(ui_.o_compression_mode_cbox->currentText() == QString("Lz4")){
         compression_options_.compression_format = "fake_comp";
     }
