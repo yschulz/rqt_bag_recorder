@@ -316,11 +316,10 @@ void BagRecorder::onBagNameChanged(const QString &bag_name){
         storage_options_.uri = std::string("");
     }
     else{
-        // out_folder_path_ = file_path.toStdString();
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::white);
         palette.setColor(QPalette::Text, Qt::black);
-        ui_.bag_name_box->setPalette(palette);
+        ui_.bag_name_box->setPalette(QApplication::palette());
         lock_recording_ = false;
         storage_options_.uri = full_dir.filePath(bag_name).toStdString();
     }
@@ -438,19 +437,29 @@ void BagRecorder::onRecord(){
     }
 
     if(base_output_folder_.isEmpty() || bag_name_.isEmpty()){
-        QMessageBox::warning(widget_, "No folder was defined!", "Cannot record.");
+        QMessageBox::warning(widget_, "Cannot record.", "Folder or bag name is not valid!");
+        return;
+    }
+
+    if(!QDir(base_output_folder_).mkpath(base_output_folder_)){
+        QString s;
+        QTextStream ss(&s);
+        ss << "Could not create base folder " << base_output_folder_ << ". Please change the folder.";
+        QMessageBox::warning(widget_, "Cannot record.", s);
         return;
     }
 
     if(lock_recording_) return;
 
+    // At this point it is safe to record, lock all widgets and prepare
+    lockAllWidgets(true);
     ui_.record_button->setText("Stop");
 
     // now go recording
     updateSubscribers();
 
-    QDir(base_output_folder_).mkpath(base_output_folder_);
 
+        QDir(base_output_folder_).mkpath(base_output_folder_);
 
     // give status update on topics
     QTreeWidgetItemIterator it(ui_.topic_tree);
@@ -517,6 +526,8 @@ void BagRecorder::onRecord(){
         }
         ++it_after;
     }
+    // release the widgets
+    lockAllWidgets(false);
 }
 
 void BagRecorder::onTestTopics(){
@@ -639,11 +650,18 @@ void BagRecorder::updateSubscribers(){
         }
         else if((*it)->checkState(0) == Qt::Checked){
             if(!subs_[topic]){
-                rclcpp::QoS qos(10);
+                auto endpoint_infos = node_->get_publishers_info_by_topic(topic);
 
-                if(topic == std::string("/tf_static")){
-                    qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+                // replace qos profile only if there are only transient local publishers
+                bool replace = true;
+                for(const auto &info : endpoint_infos){
+                    replace = info.qos_profile().durability() != rclcpp::DurabilityPolicy::Volatile;
                 }
+
+                rclcpp::QoS qos(10);
+                if(replace)
+                    qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+
                 rclcpp::SubscriptionOptions options;
                 options.callback_group = cb_group_;
 
@@ -663,10 +681,20 @@ void BagRecorder::addRowToTable(TableRow row){
     item->setText(2, row.type);
     item->setText(3, row.topic);
 
+    auto endpoint_infos = node_->get_publishers_info_by_topic(row.topic.toStdString());
+
+    // replace qos profile only if there are only transient local publishers
+    bool replace = true;
+    for(const auto &info : endpoint_infos){
+        replace = info.qos_profile().durability() != rclcpp::DurabilityPolicy::Volatile;
+    }
+
     rclcpp::QoS qos(10);
-    if(row.topic == QString("/tf_static")){
+    if(replace){
         qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
     }
+        
+
     std::string std_topic = row.topic.toStdString();
     std::string std_type = row.type.toStdString(); 
 
@@ -680,6 +708,45 @@ void BagRecorder::addRowToTable(TableRow row){
 
     // add item to the tree
     ui_.topic_tree->addTopLevelItem(item);
+}
+
+void BagRecorder::lockAllWidgets(bool lock){
+
+    ui_.out_file_box->setDisabled(lock);
+    ui_.bag_name_box->setDisabled(lock);
+    ui_.test_topics_button->setDisabled(lock);
+    ui_.set_output->setDisabled(lock);
+    ui_.o_format_cbox->setDisabled(lock);
+
+    ui_.select_all_button->setDisabled(lock);
+    ui_.deselect_all_button->setDisabled(lock);
+
+    ui_.refresh_topics_button->setDisabled(lock);
+    ui_.topics_combo_box->setDisabled(lock);
+    ui_.add_all_topics->setDisabled(lock);
+    ui_.add_topic_button->setDisabled(lock);
+    ui_.load_config->setDisabled(lock);
+    ui_.save_config->setDisabled(lock);
+    ui_.load_set_button->setDisabled(lock);
+    ui_.export_set_bottun->setDisabled(lock);
+
+    ui_.o_mx_size_toggle->setDisabled(lock);
+    if(ui_.o_mx_size_toggle->checkState() == Qt::Checked)
+        ui_.o_mx_size_spin->setDisabled(lock);
+
+    ui_.o_mx_length_toggle->setDisabled(lock);
+    if(ui_.o_mx_length_toggle->checkState() == Qt::Checked)
+        ui_.o_mx_length_spin->setDisabled(lock);
+
+    ui_.o_compression_toggle->setDisabled(lock);
+
+    ui_.o_compression_format_label->setDisabled(lock);
+    ui_.o_compressio_mode_label->setDisabled(lock);
+
+    if(ui_.o_compression_toggle->checkState() == Qt::Checked){
+        ui_.o_compression_format_cbox->setDisabled(lock);
+        ui_.o_compression_mode_cbox->setDisabled(lock);
+    }
 }
 
 }
