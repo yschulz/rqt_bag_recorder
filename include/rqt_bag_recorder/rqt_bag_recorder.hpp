@@ -90,6 +90,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
         void setConfig(const YAML::Node& root);
 
+        void lockAllWidgets(bool lock);
 
         std::unique_ptr<rosbag2_cpp::Writer> writer_;
 
