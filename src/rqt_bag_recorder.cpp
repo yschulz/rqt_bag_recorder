@@ -184,6 +184,7 @@ void BagRecorder::setConfig(const YAML::Node& root){
 
 void BagRecorder::onSetButtonClicked(int button_id){
     setConfig(set_item_hash_.value(button_id).yaml_node);
+    current_set_ = button_id;
 }
 
 void BagRecorder::onLoadSet(){
@@ -429,6 +430,8 @@ void BagRecorder::updateCompressionOptions(){
 
 void BagRecorder::onRecord(){
 
+    if(lock_recording_) return;
+
     // first we evaluate what is happening while it is recording
     if(recording_){
         recording_ = false;
@@ -449,7 +452,7 @@ void BagRecorder::onRecord(){
         return;
     }
 
-    if(lock_recording_) return;
+    
 
     // At this point it is safe to record, lock all widgets and prepare
     lockAllWidgets(true);
@@ -494,11 +497,14 @@ void BagRecorder::onRecord(){
     recording_ = true;
     emit sendRecordStatus(1);
 
+    auto ros_now = node_->get_clock()->now();
     // spin ros and keep eventloop going
     while(recording_){
         executor_.spin_some();
         QCoreApplication::processEvents();
     }
+
+    auto ros_diff = node_->get_clock()->now() - ros_now;
 
     emit sendRecordStatus(2);
     ui_.record_button->setText("Compressing");
@@ -528,6 +534,74 @@ void BagRecorder::onRecord(){
     }
     // release the widgets
     lockAllWidgets(false);
+
+    // QDir(base_output_folder_);
+    QDir full_bag_dir(QDir(base_output_folder_).filePath(bag_name_));
+
+    qint64 full_size = 0;
+    for (const QFileInfo &file : full_bag_dir.entryInfoList()){
+        full_size += file.size();
+    }
+
+    QString s;
+    QTextStream ss(&s);
+    ss << "Bag with name " << bag_name_ << ":\nRecorded for " << ros_diff.seconds() << " seconds \nBag is " ;
+    
+    if(full_size > 1000000000LL){
+        ss << full_size / 1000000000LL << "." << full_size % 1000000000LL / 100000000LL  << " GB big.";
+    }
+    else if(full_size > 1000000LL){
+        ss << full_size / 1000000LL << "." << full_size % 1000000LL / 100000LL << " MB big.";
+    }
+    else if(full_size > 1000LL){
+        ss << full_size / 1000LL << "." << full_size % 1000LL / 100LL << " KB big.";
+    }
+    else{
+        ss << full_size << " Bytes big.";
+    }
+
+    
+    QMessageBox::information(widget_, "Recording successful!", s);
+    if(current_set_ == -1){
+        return;
+    }
+    auto tree_item_list = ui_.set_tree->findItems(set_item_hash_.value(current_set_).file_info.fileName(), Qt::MatchExactly, 0);
+    auto tree_item = tree_item_list.at(0);
+    set_item_hash_[current_set_].versions += 1;
+
+    set_item_hash_[current_set_].bag_length = ros_diff.seconds();
+
+    if(set_item_hash_.value(current_set_).versions == 1){
+        tree_item->setBackground(0, QBrush(Qt::green));
+
+        QTreeWidgetItem *bytes_item = new QTreeWidgetItem(tree_item);
+        bytes_item->setText(0, "Bytes: ");
+        bytes_item->setText(1, QString::number(full_size));
+        tree_item->addChild(bytes_item);
+
+        QTreeWidgetItem *length_item = new QTreeWidgetItem(tree_item);
+        length_item->setText(0, "Length in seconds: ");
+        length_item->setText(1, QString::number(set_item_hash_.value(current_set_).bag_length));
+        tree_item->addChild(length_item);
+
+        QTreeWidgetItem *versions_item = new QTreeWidgetItem(tree_item);
+        versions_item->setText(0, "Versions: ");
+        versions_item->setText(1, QString::number(set_item_hash_.value(current_set_).versions));
+        tree_item->addChild(versions_item);
+    }
+    else{
+        auto bytes_item = tree_item->child(1);
+        bytes_item->setText(1, QString::number(full_size));
+
+        auto length_item = tree_item->child(2);
+        length_item->setText(1, QString::number(set_item_hash_[current_set_].bag_length));
+
+        auto versions_item = tree_item->child(3);
+        versions_item->setText(1, QString::number(set_item_hash_[current_set_].versions));
+    }
+
+    
+
 }
 
 void BagRecorder::onTestTopics(){
@@ -746,6 +820,10 @@ void BagRecorder::lockAllWidgets(bool lock){
     if(ui_.o_compression_toggle->checkState() == Qt::Checked){
         ui_.o_compression_format_cbox->setDisabled(lock);
         ui_.o_compression_mode_cbox->setDisabled(lock);
+    }
+
+    for(auto &pair : set_item_hash_){
+        pair.set_button->setDisabled(lock);
     }
 }
 

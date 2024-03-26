@@ -35,6 +35,9 @@ struct SetItem{
     QFileInfo file_info;
     YAML::Node yaml_node;
     QPushButton* set_button;
+    double bag_length;
+    int file_size;
+    int versions = 0;
 };
     
 class BagRecorder: public rqt_gui_cpp::Plugin{
@@ -119,6 +122,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
         QButtonGroup* b_group_;
         int total_set_items_ = 0;
+        int current_set_ = -1;
 
         std::future<void> compression_future_;
 
