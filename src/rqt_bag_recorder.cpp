@@ -1,4 +1,5 @@
 #include "rqt_bag_recorder/rqt_bag_recorder.hpp"
+#include "rqt_bag_recorder/bag_recorder_utilities.hpp"
 
 #include "libstatistics_collector/moving_average_statistics/types.hpp"
 
@@ -8,6 +9,7 @@
 #include "yaml-cpp/yaml.h"
 #include <iostream>
 #include <fstream>
+
 
 namespace rqt_bag_recorder{
 
@@ -62,6 +64,7 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.topic_tree->setColumnWidth(1, 160);
     ui_.topic_tree->setColumnWidth(2, 350);
 
+    connect(ui_.o_format_cbox, SIGNAL(currentTextChanged(const QString &)), this, SLOT(onFormatChanged(const QString &)));
 
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
@@ -131,6 +134,10 @@ void BagRecorder::saveSettings(qt_gui_cpp::Settings& /*plugin_settings*/, qt_gui
 
 void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*/, const qt_gui_cpp::Settings& /*instance_settings*/){
 
+}
+
+void BagRecorder::onFormatChanged(const QString &text){
+    storage_options_.storage_id = text.toStdString();
 }
 
 void BagRecorder::setConfig(const YAML::Node& root){
@@ -333,7 +340,6 @@ void BagRecorder::onBasePathChanged(const QString &file_path){
 void BagRecorder::onSaveConfig(){
     QString save_file = QFileDialog::getSaveFileName(widget_, "Saving configuration file", "/home", tr("Yaml-file (*.yaml *.yml)"));
 
-    // std::cout << save_file.toStdString() << "\n";
 
     if(save_file.isEmpty()) return;
 
@@ -492,7 +498,6 @@ void BagRecorder::onRecord(){
         writer_ = std::make_unique<rosbag2_cpp::Writer>();
     }
     
-    
     writer_->open(storage_options_, converter_options_);
     recording_ = true;
     emit sendRecordStatus(1);
@@ -549,21 +554,7 @@ void BagRecorder::onRecord(){
 
     QString s;
     QTextStream ss(&s);
-    ss << "Bag with name " << bag_name_ << ":\nRecorded for " << ros_diff.seconds() << " seconds \nBag is " ;
-    
-    if(full_size > 1000000000LL){
-        ss << full_size / 1000000000LL << "." << full_size % 1000000000LL / 100000000LL  << " GB big.";
-    }
-    else if(full_size > 1000000LL){
-        ss << full_size / 1000000LL << "." << full_size % 1000000LL / 100000LL << " MB big.";
-    }
-    else if(full_size > 1000LL){
-        ss << full_size / 1000LL << "." << full_size % 1000LL / 100LL << " KB big.";
-    }
-    else{
-        ss << full_size << " Bytes big.";
-    }
-
+    ss << "Bag with name " << bag_name_ << ":\nRecorded for " << QString::fromStdString(toStringSeconds(ros_diff.seconds())) << "\nBag is " << QString::fromStdString(toStringFileSize(full_size)) << " big.";
     
     QMessageBox::information(widget_, "Recording successful!", s);
     if(current_set_ == -1){
@@ -580,12 +571,12 @@ void BagRecorder::onRecord(){
 
         QTreeWidgetItem *bytes_item = new QTreeWidgetItem(tree_item);
         bytes_item->setText(0, "Bytes: ");
-        bytes_item->setText(1, QString::number(full_size));
+        bytes_item->setText(1, QString::fromStdString(toStringFileSize(full_size)));
         tree_item->addChild(bytes_item);
 
         QTreeWidgetItem *length_item = new QTreeWidgetItem(tree_item);
         length_item->setText(0, "Length in seconds: ");
-        length_item->setText(1, QString::number(set_item_hash_.value(current_set_).bag_length));
+        length_item->setText(1, QString::fromStdString(toStringSeconds(ros_diff.seconds())));
         tree_item->addChild(length_item);
 
         QTreeWidgetItem *versions_item = new QTreeWidgetItem(tree_item);
@@ -602,10 +593,10 @@ void BagRecorder::onRecord(){
     }
     else{
         auto bytes_item = tree_item->child(1);
-        bytes_item->setText(1, QString::number(full_size));
+        bytes_item->setText(1, QString::fromStdString(toStringFileSize(full_size)));
 
         auto length_item = tree_item->child(2);
-        length_item->setText(1, QString::number(set_item_hash_[current_set_].bag_length));
+        length_item->setText(1, QString::fromStdString(toStringSeconds(ros_diff.seconds())));
 
         auto versions_item = tree_item->child(3);
         versions_item->setText(1, QString::number(set_item_hash_[current_set_].versions));

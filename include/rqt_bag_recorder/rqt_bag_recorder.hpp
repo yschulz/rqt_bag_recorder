@@ -55,6 +55,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void sendRecordStatus(int record);
 
     protected slots:
+    
+        void onFormatChanged(const QString &text);
         void onRecord();
         void onTestTopics();
         void onLoadConfig();
