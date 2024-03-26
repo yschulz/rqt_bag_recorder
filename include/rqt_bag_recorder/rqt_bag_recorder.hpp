@@ -19,6 +19,8 @@
 #include <QPainterPath>
 #include <QButtonGroup>
 
+#include <future>
+
 
 namespace rqt_bag_recorder {
 
@@ -47,7 +49,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void restoreSettings(const qt_gui_cpp::Settings& plugin_settings, const qt_gui_cpp::Settings& instance_settings) override;
 
     signals:
-        void sendRecordStatus(bool record);
+        void sendRecordStatus(int record);
 
     protected slots:
         void onRecord();
@@ -116,6 +118,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
         QButtonGroup* b_group_;
         int total_set_items_ = 0;
+
+        std::future<void> compression_future_;
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;

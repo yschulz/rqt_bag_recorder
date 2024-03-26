@@ -34,7 +34,7 @@ class RecordDot : public QWidget {
 
 
     protected slots:
-        void setRecordStatus(bool record);
+        void setRecordStatus(int record);
 
     private:
         QTimer* timer_;
@@ -45,7 +45,7 @@ class RecordDot : public QWidget {
         QPainterPath ellipse_path_;
         QPainterPath circle_path_;
         
-        bool record_;
+        int record_;
         int box_size_ = 25;
         int painter_offset_ = 6;
         int pen_stroke_ = 3;

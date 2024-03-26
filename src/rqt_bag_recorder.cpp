@@ -73,7 +73,7 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(ui_.out_file_box, SIGNAL(textChanged(const QString&)), this, SLOT(onBasePathChanged(const QString &)));
     connect(ui_.bag_name_box, SIGNAL(textChanged(const QString&)), this, SLOT(onBagNameChanged(const QString &)));
 
-    connect(this, SIGNAL(sendRecordStatus(bool)), ui_.record_w, SLOT(setRecordStatus(bool)));
+    connect(this, SIGNAL(sendRecordStatus(int)), ui_.record_w, SLOT(setRecordStatus(int)));
 
     ui_.o_format_cbox->addItem(QString("sqlite3"));
     ui_.o_format_cbox->addItem(QString("mcap"));
@@ -434,7 +434,6 @@ void BagRecorder::onRecord(){
     if(recording_){
         recording_ = false;
         onBagNameChanged(bag_name_);
-        ui_.record_button->setText("Record");
         return;
     }
 
@@ -484,7 +483,7 @@ void BagRecorder::onRecord(){
     
     writer_->open(storage_options_, converter_options_);
     recording_ = true;
-    emit sendRecordStatus(recording_);
+    emit sendRecordStatus(1);
 
     // spin ros and keep eventloop going
     while(recording_){
@@ -492,8 +491,19 @@ void BagRecorder::onRecord(){
         QCoreApplication::processEvents();
     }
 
-    writer_->close();
-    emit sendRecordStatus(recording_);
+    emit sendRecordStatus(2);
+    ui_.record_button->setText("Compressing");
+    lock_recording_ = true;
+
+    compression_future_ = std::async(std::launch::async, [this]() { writer_->close();});
+    while(compression_future_.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready){
+        QCoreApplication::processEvents();
+    }
+    
+    emit sendRecordStatus(0);
+    ui_.record_button->setText("Record");
+
+    lock_recording_ = false;
 
     // update status after recording
     QTreeWidgetItemIterator it_after = QTreeWidgetItemIterator(ui_.topic_tree);
@@ -630,6 +640,10 @@ void BagRecorder::updateSubscribers(){
         else if((*it)->checkState(0) == Qt::Checked){
             if(!subs_[topic]){
                 rclcpp::QoS qos(10);
+
+                if(topic == std::string("/tf_static")){
+                    qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+                }
                 rclcpp::SubscriptionOptions options;
                 options.callback_group = cb_group_;
 
@@ -650,6 +664,9 @@ void BagRecorder::addRowToTable(TableRow row){
     item->setText(3, row.topic);
 
     rclcpp::QoS qos(10);
+    if(row.topic == QString("/tf_static")){
+        qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+    }
     std::string std_topic = row.topic.toStdString();
     std::string std_type = row.type.toStdString(); 
 
