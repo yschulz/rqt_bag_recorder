@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include <QTimer>
+#include <iostream>
 
 namespace rqt_bag_recorder{
 
@@ -54,7 +55,7 @@ void CPBar::paintEvent(QPaintEvent *) {
 
 RecordDot::RecordDot(QWidget * parent) : QWidget(parent){
     QWidget::setMinimumSize(box_size_, box_size_);
-    record_ = false;
+    record_ = 0;
 
     timer_ = new QTimer(this);
     timer_->setInterval(100);
@@ -65,19 +66,12 @@ RecordDot::RecordDot(QWidget * parent) : QWidget(parent){
 
     circle_path_.moveTo(box_size_ / 2, 0);
     circle_path_.arcTo(QRectF(0, 0, box_size_ - painter_offset_, box_size_ - painter_offset_), 90, 360);
-
-    QColor red, red_dark;
-    QColor gray, gray_dark;
-    red.setHsl(0, 255, 127, 255);
-    red_dark.setHsl(0, 255, 64, 255);
-
-    gray.setHsl(0, 0, 127, 255);
-    gray_dark.setHsl(0, 0, 64, 255);
 }
 
-void RecordDot::setRecordStatus(bool record){
+void RecordDot::setRecordStatus(int record){
     record_ = record;
     QWidget::update();
+
     if(record)
         timer_->start();
     else
@@ -95,26 +89,34 @@ void RecordDot::paintEvent(QPaintEvent *) {
     pen.setWidth(pen_stroke_);
 
     if(record_){
-        QColor red, red_dark, red_light;
-
-        red.setHsl(0, 255, 127, 255);
-        red_dark.setHsl(0, 255, 64, 255);
+        QColor full, dark, light;
 
         // set red_light based on time
         auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         double amplitude = 30;
         double period = milliseconds * M_PI / 1000;
 
-        uint8_t light = 190 + std::sin(period) * amplitude;
-        red_light.setHsl(0, 255, light, 255);
+        uint8_t light_value = 190 + std::sin(period) * amplitude;
 
-        ellipse_brush = QBrush(red);
+        if(record_ == 1){
+            full.setHsl(0, 255, 127, 255);
+            dark.setHsl(0, 255, 64, 255);
+            light.setHsl(0, 255, light_value, 255);
+        }
+        else if(record_ == 2){
+            full.setHsl(210, 255, 127, 255);
+            dark.setHsl(210, 255, 64, 255);
+            light.setHsl(210, 255, light_value, 255);
+        }
 
-        radial_gradient.setColorAt(0, red_light);
-        radial_gradient.setColorAt(0.5, red_light);
-        radial_gradient.setColorAt(1, red);
 
-        pen.setColor(red_dark);
+        ellipse_brush = QBrush(full);
+
+        radial_gradient.setColorAt(0, light);
+        radial_gradient.setColorAt(0.5, light);
+        radial_gradient.setColorAt(1, full);
+
+        pen.setColor(dark);
     }
     else{
         QColor gray, gray_dark, gray_light;
