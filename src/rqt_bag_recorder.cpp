@@ -630,6 +630,10 @@ void BagRecorder::updateSubscribers(){
         else if((*it)->checkState(0) == Qt::Checked){
             if(!subs_[topic]){
                 rclcpp::QoS qos(10);
+
+                if(topic == std::string("/tf_static")){
+                    qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+                }
                 rclcpp::SubscriptionOptions options;
                 options.callback_group = cb_group_;
 
@@ -650,6 +654,9 @@ void BagRecorder::addRowToTable(TableRow row){
     item->setText(3, row.topic);
 
     rclcpp::QoS qos(10);
+    if(row.topic == std::string("/tf_static")){
+        qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+    }
     std::string std_topic = row.topic.toStdString();
     std::string std_type = row.type.toStdString(); 
 
