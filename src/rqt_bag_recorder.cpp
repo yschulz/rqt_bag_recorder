@@ -497,6 +497,10 @@ void BagRecorder::onRecord(){
     recording_ = true;
     emit sendRecordStatus(1);
 
+    for(auto &topic_pair : n_msgs_received_){
+        topic_pair.second = 0;
+    }
+
     auto ros_now = node_->get_clock()->now();
     // spin ros and keep eventloop going
     while(recording_){
@@ -588,6 +592,13 @@ void BagRecorder::onRecord(){
         versions_item->setText(0, "Versions: ");
         versions_item->setText(1, QString::number(set_item_hash_.value(current_set_).versions));
         tree_item->addChild(versions_item);
+
+        for (const auto &topic : set_item_hash_[current_set_].yaml_node["topics"]){
+            QTreeWidgetItem *topic_item = new QTreeWidgetItem(tree_item);
+            std::string topic_std = topic.as<std::string>();
+            topic_item->setText(0, QString::fromStdString(topic_std));
+            topic_item->setText(1, QString::number(n_msgs_received_[topic_std]));
+        }
     }
     else{
         auto bytes_item = tree_item->child(1);
@@ -598,6 +609,13 @@ void BagRecorder::onRecord(){
 
         auto versions_item = tree_item->child(3);
         versions_item->setText(1, QString::number(set_item_hash_[current_set_].versions));
+        
+        int n = 4;
+        while(tree_item->child(n)){
+            auto topic_item = tree_item->child(n);
+            topic_item->setText(1, QString::number(n_msgs_received_[topic_item->text(0).toStdString()]));
+            n++;
+        }
     }
 
     
@@ -608,6 +626,9 @@ void BagRecorder::onTestTopics(){
     // run for 2 seconds and count all incoming messages
     auto time_before = node_->get_clock()->now();
 
+    for(auto &topic_pair : n_msgs_received_){
+        topic_pair.second = 0;
+    }
     
     double progress = 0;
     while(progress < 1){
