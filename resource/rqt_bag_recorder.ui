@@ -262,7 +262,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QPushButton" name="export_set_bottun">
+          <widget class="QPushButton" name="export_set_button">
            <property name="text">
             <string>Export Set</string>
            </property>

@@ -136,6 +136,8 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     connect(b_group_, SIGNAL(idClicked(int)), this, SLOT(onSetButtonClicked(int)));
 
     connect(ui_.topic_filter, SIGNAL(textChanged(const QString &)), this, SLOT(onFilterTextChanged(const QString &)));
+
+    connect(ui_.export_set_button, SIGNAL(pressed()), this, SLOT(onExportSet()));
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -147,6 +149,42 @@ void BagRecorder::saveSettings(qt_gui_cpp::Settings& /*plugin_settings*/, qt_gui
 }
 
 void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*/, const qt_gui_cpp::Settings& /*instance_settings*/){
+
+}
+
+void BagRecorder::onExportSet(){
+    QString save_file = QFileDialog::getSaveFileName(widget_, "Export set metadata", "/home", tr("Yaml-file (*.yaml *.yml)"));
+
+    if(save_file.isEmpty()) return;
+
+    std::ofstream root_file;
+    root_file.open(save_file.toStdString());
+
+    YAML::Emitter out(root_file);
+    out << YAML::BeginMap;
+
+    for(const auto & bag_config : set_item_hash_){
+        out << YAML::Key << bag_config.file_info.fileName().toStdString();
+        out << YAML::BeginMap;
+        out << YAML::Key << "bag_names" << YAML::BeginSeq;
+        for(const auto & name : bag_config.bag_names){
+            out << name;
+        }
+        out << YAML::EndSeq << YAML::Key << "bag_lengths" << YAML::BeginSeq;
+        for(const auto & length : bag_config.bag_length){
+            out << length;
+        }
+
+        out << YAML::EndSeq << YAML::Key << "bag_sizes" << YAML::BeginSeq;
+        for(const auto & size : bag_config.file_size){
+            out << size;
+        }
+
+        out << YAML::EndSeq << YAML::EndMap;
+    }
+    out << YAML::EndMap;
+
+    root_file.close();
 
 }
 
@@ -324,11 +362,9 @@ void BagRecorder::onToggleCompression(int state){
     }
 }
 
-void BagRecorder::onBagNameChanged(const QString &bag_name){
+void BagRecorder::checkFilePath(){
     QDir full_dir(base_output_folder_);
-    bag_name_ = bag_name;
-
-    if(QDir(full_dir.filePath(bag_name)).exists()){
+    if(QDir(full_dir.filePath(bag_name_)).exists()){
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::red);
         palette.setColor(QPalette::Text, Qt::black);
@@ -342,19 +378,24 @@ void BagRecorder::onBagNameChanged(const QString &bag_name){
         palette.setColor(QPalette::Text, Qt::black);
         ui_.bag_name_box->setPalette(QApplication::palette());
         lock_recording_ = false;
-        storage_options_.uri = full_dir.filePath(bag_name).toStdString();
+        storage_options_.uri = full_dir.filePath(bag_name_).toStdString();
     }
+}
+
+void BagRecorder::onBagNameChanged(const QString &bag_name){
+    bag_name_ = bag_name;
+    checkFilePath();
 }
 
 void BagRecorder::onBasePathChanged(const QString &file_path){
     base_output_folder_ = file_path;
     q_storage_info_ = QStorageInfo(QDir(base_output_folder_).root());
     updateFreeSpace();
+    checkFilePath();
 }
 
 void BagRecorder::onSaveConfig(){
     QString save_file = QFileDialog::getSaveFileName(widget_, "Saving configuration file", "/home", tr("Yaml-file (*.yaml *.yml)"));
-
 
     if(save_file.isEmpty()) return;
 
@@ -431,7 +472,8 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::updateCompressionOptions(){
-    if(ui_.o_compression_mode_cbox->currentText() == QString("Zstd")){
+    std::cout << ui_.o_compression_mode_cbox->currentText().toStdString() << "\n";
+    if(ui_.o_compression_format_cbox->currentText() == QString("Zstd")){
         compression_options_.compression_format = "zstd";
     }
 
@@ -573,7 +615,9 @@ void BagRecorder::onRecord(){
     auto tree_item = tree_item_list.at(0);
     set_item_hash_[current_set_].versions += 1;
 
-    set_item_hash_[current_set_].bag_length = ros_diff.seconds();
+    set_item_hash_[current_set_].bag_length.push_back(ros_diff.seconds());
+    set_item_hash_[current_set_].file_size.push_back(full_size);
+    set_item_hash_[current_set_].bag_names.push_back(bag_name_.toStdString());
 
     if(set_item_hash_.value(current_set_).versions == 1){
         tree_item->setBackground(0, QBrush(Qt::green));
@@ -823,7 +867,7 @@ void BagRecorder::lockAllWidgets(bool lock){
     ui_.load_config->setDisabled(lock);
     ui_.save_config->setDisabled(lock);
     ui_.load_set_button->setDisabled(lock);
-    ui_.export_set_bottun->setDisabled(lock);
+    ui_.export_set_button->setDisabled(lock);
 
     ui_.o_mx_size_toggle->setDisabled(lock);
     if(ui_.o_mx_size_toggle->checkState() == Qt::Checked)

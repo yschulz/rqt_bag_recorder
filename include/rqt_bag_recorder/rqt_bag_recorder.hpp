@@ -37,9 +37,11 @@ struct SetItem{
     QFileInfo file_info;
     YAML::Node yaml_node;
     QPushButton* set_button;
-    double bag_length;
-    int file_size;
     int versions = 0;
+    std::vector<std::string> bag_names;
+    std::vector<double> bag_length;
+    std::vector<int> file_size;
+    
 };
     
 class BagRecorder: public rqt_gui_cpp::Plugin{
@@ -76,13 +78,14 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onDeselectAll();
 
         void onLoadSet();
+        void onExportSet();
 
         void onSetButtonClicked(int button_id);
 
         void onToggleCompression(int state);
+
         void onToggleBagSize(int state);
         void onToggleBagLength(int state);
-
         void onBagSizeSpin(int value);
         void onBagLengthSpin(int value);
 
@@ -92,7 +95,7 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
     private:
         
-        bool isFilePathValid(QString path);
+        void checkFilePath();
         void addRowToTable(TableRow row);
         void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
 
