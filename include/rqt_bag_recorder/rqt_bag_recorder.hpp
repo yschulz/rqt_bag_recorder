@@ -18,6 +18,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QButtonGroup>
+#include <QStorageInfo>
+#include <QSortFilterProxyModel>
 
 #include <future>
 
@@ -35,6 +37,11 @@ struct SetItem{
     QFileInfo file_info;
     YAML::Node yaml_node;
     QPushButton* set_button;
+    int versions = 0;
+    std::vector<std::string> bag_names;
+    std::vector<double> bag_length;
+    std::vector<int> file_size;
+    
 };
     
 class BagRecorder: public rqt_gui_cpp::Plugin{
@@ -52,6 +59,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void sendRecordStatus(int record);
 
     protected slots:
+    
+        void onFormatChanged(const QString &text);
         void onRecord();
         void onTestTopics();
         void onLoadConfig();
@@ -69,18 +78,24 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onDeselectAll();
 
         void onLoadSet();
+        void onExportSet();
 
         void onSetButtonClicked(int button_id);
 
         void onToggleCompression(int state);
+
         void onToggleBagSize(int state);
         void onToggleBagLength(int state);
-
         void onBagSizeSpin(int value);
         void onBagLengthSpin(int value);
 
+        void onFilterTextChanged(const QString &filter_text);
+
+        void updateFreeSpace();
+
     private:
-        bool isFilePathValid(QString path);
+        
+        void checkFilePath();
         void addRowToTable(TableRow row);
         void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
 
@@ -111,19 +126,25 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
         bool lock_recording_;
-        // std::string out_folder_path_;
+
         QString base_output_folder_;
         QString bag_name_;
 
         QHash<int, SetItem> set_item_hash_;
 
+        QStorageInfo q_storage_info_;
+        QTimer* free_space_timer_;
+
         QButtonGroup* b_group_;
         int total_set_items_ = 0;
+        int current_set_ = -1;
 
         std::future<void> compression_future_;
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;
+
+        QSortFilterProxyModel* filter_proxy_;
 };
 
 } // rqt_bag_recorder

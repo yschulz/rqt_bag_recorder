@@ -1,4 +1,5 @@
 #include "rqt_bag_recorder/rqt_bag_recorder.hpp"
+#include "rqt_bag_recorder/bag_recorder_utilities.hpp"
 
 #include "libstatistics_collector/moving_average_statistics/types.hpp"
 
@@ -8,6 +9,7 @@
 #include "yaml-cpp/yaml.h"
 #include <iostream>
 #include <fstream>
+
 
 namespace rqt_bag_recorder{
 
@@ -46,6 +48,11 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     }
     context.addWidget(widget_);
 
+    free_space_timer_ = new QTimer(this);
+    free_space_timer_->setInterval(2000);
+
+    connect(free_space_timer_, SIGNAL(timeout()), this, SLOT(updateFreeSpace()));
+
     // setup topic bar
     updateTopicList();
     connect(ui_.refresh_topics_button, SIGNAL(pressed()), this, SLOT(updateTopicList()));
@@ -58,10 +65,20 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.topic_tree->setColumnCount(labels.size());
     ui_.topic_tree->setHeaderLabels(labels);
 
-    ui_.topic_tree->setColumnWidth(0, 80);
-    ui_.topic_tree->setColumnWidth(1, 160);
-    ui_.topic_tree->setColumnWidth(2, 350);
 
+    filter_proxy_  = new QSortFilterProxyModel(widget_);
+    filter_proxy_->setSourceModel(ui_.topic_tree->model());
+    filter_proxy_->setFilterKeyColumn(-1);
+    ui_.topic_tree_view->setModel(filter_proxy_);
+    ui_.topic_tree->hide();
+
+    ui_.topic_tree_view->setColumnWidth(0, 80);
+    ui_.topic_tree_view->setColumnWidth(1, 160);
+    ui_.topic_tree_view->setColumnWidth(2, 350);
+
+
+
+    connect(ui_.o_format_cbox, SIGNAL(currentTextChanged(const QString &)), this, SLOT(onFormatChanged(const QString &)));
 
     connect(ui_.test_topics_button, SIGNAL(pressed()), this, SLOT(onTestTopics()));
     connect(ui_.record_button, SIGNAL(pressed()), this, SLOT(onRecord()));
@@ -79,7 +96,6 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.o_format_cbox->addItem(QString("mcap"));
     ui_.o_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText("sqlite3"));
 
-    ui_.o_compression_format_cbox->addItem(QString("Lz4"));
     ui_.o_compression_format_cbox->addItem(QString("Zstd"));
     ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
     ui_.o_compression_format_cbox->setDisabled(true);
@@ -119,6 +135,9 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
     connect(b_group_, SIGNAL(idClicked(int)), this, SLOT(onSetButtonClicked(int)));
 
+    connect(ui_.topic_filter, SIGNAL(textChanged(const QString &)), this, SLOT(onFilterTextChanged(const QString &)));
+
+    connect(ui_.export_set_button, SIGNAL(pressed()), this, SLOT(onExportSet()));
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -131,6 +150,50 @@ void BagRecorder::saveSettings(qt_gui_cpp::Settings& /*plugin_settings*/, qt_gui
 
 void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*/, const qt_gui_cpp::Settings& /*instance_settings*/){
 
+}
+
+void BagRecorder::onExportSet(){
+    QString save_file = QFileDialog::getSaveFileName(widget_, "Export set metadata", "/home", tr("Yaml-file (*.yaml *.yml)"));
+
+    if(save_file.isEmpty()) return;
+
+    std::ofstream root_file;
+    root_file.open(save_file.toStdString());
+
+    YAML::Emitter out(root_file);
+    out << YAML::BeginMap;
+
+    for(const auto & bag_config : set_item_hash_){
+        out << YAML::Key << bag_config.file_info.fileName().toStdString();
+        out << YAML::BeginMap;
+        out << YAML::Key << "bag_names" << YAML::BeginSeq;
+        for(const auto & name : bag_config.bag_names){
+            out << name;
+        }
+        out << YAML::EndSeq << YAML::Key << "bag_lengths" << YAML::BeginSeq;
+        for(const auto & length : bag_config.bag_length){
+            out << length;
+        }
+
+        out << YAML::EndSeq << YAML::Key << "bag_sizes" << YAML::BeginSeq;
+        for(const auto & size : bag_config.file_size){
+            out << size;
+        }
+
+        out << YAML::EndSeq << YAML::EndMap;
+    }
+    out << YAML::EndMap;
+
+    root_file.close();
+
+}
+
+void BagRecorder::onFilterTextChanged(const QString &filter_text){
+    filter_proxy_->setFilterRegularExpression(filter_text);
+}
+
+void BagRecorder::onFormatChanged(const QString &text){
+    storage_options_.storage_id = text.toStdString();
 }
 
 void BagRecorder::setConfig(const YAML::Node& root){
@@ -184,6 +247,7 @@ void BagRecorder::setConfig(const YAML::Node& root){
 
 void BagRecorder::onSetButtonClicked(int button_id){
     setConfig(set_item_hash_.value(button_id).yaml_node);
+    current_set_ = button_id;
 }
 
 void BagRecorder::onLoadSet(){
@@ -283,7 +347,7 @@ void BagRecorder::onToggleCompression(int state){
     case Qt::Checked:
         ui_.o_compression_format_cbox->setDisabled(false);
         ui_.o_compression_mode_cbox->setDisabled(false);
-        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText("Lz4"));
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText("Zstd"));
         ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText("file"));
         break;
     case Qt::Unchecked:
@@ -298,16 +362,9 @@ void BagRecorder::onToggleCompression(int state){
     }
 }
 
-void BagRecorder::onBagNameChanged(const QString &bag_name){
-    // if(base_output_folder_.isEmpty()){
-    //     QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
-    //     return;
-    // }
-
+void BagRecorder::checkFilePath(){
     QDir full_dir(base_output_folder_);
-    bag_name_ = bag_name;
-
-    if(QDir(full_dir.filePath(bag_name)).exists()){
+    if(QDir(full_dir.filePath(bag_name_)).exists()){
         QPalette palette;
         palette.setColor(QPalette::Base, Qt::red);
         palette.setColor(QPalette::Text, Qt::black);
@@ -321,18 +378,24 @@ void BagRecorder::onBagNameChanged(const QString &bag_name){
         palette.setColor(QPalette::Text, Qt::black);
         ui_.bag_name_box->setPalette(QApplication::palette());
         lock_recording_ = false;
-        storage_options_.uri = full_dir.filePath(bag_name).toStdString();
+        storage_options_.uri = full_dir.filePath(bag_name_).toStdString();
     }
+}
+
+void BagRecorder::onBagNameChanged(const QString &bag_name){
+    bag_name_ = bag_name;
+    checkFilePath();
 }
 
 void BagRecorder::onBasePathChanged(const QString &file_path){
     base_output_folder_ = file_path;
+    q_storage_info_ = QStorageInfo(QDir(base_output_folder_).root());
+    updateFreeSpace();
+    checkFilePath();
 }
 
 void BagRecorder::onSaveConfig(){
     QString save_file = QFileDialog::getSaveFileName(widget_, "Saving configuration file", "/home", tr("Yaml-file (*.yaml *.yml)"));
-
-    // std::cout << save_file.toStdString() << "\n";
 
     if(save_file.isEmpty()) return;
 
@@ -409,10 +472,8 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::updateCompressionOptions(){
-    if(ui_.o_compression_mode_cbox->currentText() == QString("Lz4")){
-        compression_options_.compression_format = "fake_comp";
-    }
-    else{
+    std::cout << ui_.o_compression_mode_cbox->currentText().toStdString() << "\n";
+    if(ui_.o_compression_format_cbox->currentText() == QString("Zstd")){
         compression_options_.compression_format = "zstd";
     }
 
@@ -429,9 +490,12 @@ void BagRecorder::updateCompressionOptions(){
 
 void BagRecorder::onRecord(){
 
+    if(lock_recording_) return;
+
     // first we evaluate what is happening while it is recording
     if(recording_){
         recording_ = false;
+        free_space_timer_->stop();
         onBagNameChanged(bag_name_);
         return;
     }
@@ -441,7 +505,7 @@ void BagRecorder::onRecord(){
         return;
     }
 
-    if(!QDir(base_output_folder_).mkpath(base_output_folder_)){
+    if(!QDir(base_output_folder_).mkpath(base_output_folder_) || !QDir(base_output_folder_).exists()){
         QString s;
         QTextStream ss(&s);
         ss << "Could not create base folder " << base_output_folder_ << ". Please change the folder.";
@@ -449,17 +513,12 @@ void BagRecorder::onRecord(){
         return;
     }
 
-    if(lock_recording_) return;
-
     // At this point it is safe to record, lock all widgets and prepare
     lockAllWidgets(true);
     ui_.record_button->setText("Stop");
 
     // now go recording
     updateSubscribers();
-
-
-        QDir(base_output_folder_).mkpath(base_output_folder_);
 
     // give status update on topics
     QTreeWidgetItemIterator it(ui_.topic_tree);
@@ -489,16 +548,23 @@ void BagRecorder::onRecord(){
         writer_ = std::make_unique<rosbag2_cpp::Writer>();
     }
     
-    
     writer_->open(storage_options_, converter_options_);
     recording_ = true;
+    free_space_timer_->start();
     emit sendRecordStatus(1);
 
+    for(auto &topic_pair : n_msgs_received_){
+        topic_pair.second = 0;
+    }
+
+    auto ros_now = node_->get_clock()->now();
     // spin ros and keep eventloop going
     while(recording_){
         executor_.spin_some();
         QCoreApplication::processEvents();
     }
+
+    auto ros_diff = node_->get_clock()->now() - ros_now;
 
     emit sendRecordStatus(2);
     ui_.record_button->setText("Compressing");
@@ -528,12 +594,85 @@ void BagRecorder::onRecord(){
     }
     // release the widgets
     lockAllWidgets(false);
+
+    // QDir(base_output_folder_);
+    QDir full_bag_dir(QDir(base_output_folder_).filePath(bag_name_));
+
+    qint64 full_size = 0;
+    for (const QFileInfo &file : full_bag_dir.entryInfoList()){
+        full_size += file.size();
+    }
+
+    QString s;
+    QTextStream ss(&s);
+    ss << "Bag with name " << bag_name_ << ":\nRecorded for " << QString::fromStdString(toStringSeconds(ros_diff.seconds())) << "\nBag is " << QString::fromStdString(toStringFileSize(full_size)) << " big.";
+    
+    QMessageBox::information(widget_, "Recording successful!", s);
+    if(current_set_ == -1){
+        return;
+    }
+    auto tree_item_list = ui_.set_tree->findItems(set_item_hash_.value(current_set_).file_info.fileName(), Qt::MatchExactly, 0);
+    auto tree_item = tree_item_list.at(0);
+    set_item_hash_[current_set_].versions += 1;
+
+    set_item_hash_[current_set_].bag_length.push_back(ros_diff.seconds());
+    set_item_hash_[current_set_].file_size.push_back(full_size);
+    set_item_hash_[current_set_].bag_names.push_back(bag_name_.toStdString());
+
+    if(set_item_hash_.value(current_set_).versions == 1){
+        tree_item->setBackground(0, QBrush(Qt::green));
+
+        QTreeWidgetItem *bytes_item = new QTreeWidgetItem(tree_item);
+        bytes_item->setText(0, "Bytes: ");
+        bytes_item->setText(1, QString::fromStdString(toStringFileSize(full_size)));
+        tree_item->addChild(bytes_item);
+
+        QTreeWidgetItem *length_item = new QTreeWidgetItem(tree_item);
+        length_item->setText(0, "Length in seconds: ");
+        length_item->setText(1, QString::fromStdString(toStringSeconds(ros_diff.seconds())));
+        tree_item->addChild(length_item);
+
+        QTreeWidgetItem *versions_item = new QTreeWidgetItem(tree_item);
+        versions_item->setText(0, "Versions: ");
+        versions_item->setText(1, QString::number(set_item_hash_.value(current_set_).versions));
+        tree_item->addChild(versions_item);
+
+        for (const auto &topic : set_item_hash_[current_set_].yaml_node["topics"]){
+            QTreeWidgetItem *topic_item = new QTreeWidgetItem(tree_item);
+            std::string topic_std = topic.as<std::string>();
+            topic_item->setText(0, QString::fromStdString(topic_std));
+            topic_item->setText(1, QString::number(n_msgs_received_[topic_std]));
+        }
+    }
+    else{
+        auto bytes_item = tree_item->child(1);
+        bytes_item->setText(1, QString::fromStdString(toStringFileSize(full_size)));
+
+        auto length_item = tree_item->child(2);
+        length_item->setText(1, QString::fromStdString(toStringSeconds(ros_diff.seconds())));
+
+        auto versions_item = tree_item->child(3);
+        versions_item->setText(1, QString::number(set_item_hash_[current_set_].versions));
+        
+        int n = 4;
+        while(tree_item->child(n)){
+            auto topic_item = tree_item->child(n);
+            topic_item->setText(1, QString::number(n_msgs_received_[topic_item->text(0).toStdString()]));
+            n++;
+        }
+    }
+
+    
+
 }
 
 void BagRecorder::onTestTopics(){
     // run for 2 seconds and count all incoming messages
     auto time_before = node_->get_clock()->now();
 
+    for(auto &topic_pair : n_msgs_received_){
+        topic_pair.second = 0;
+    }
     
     double progress = 0;
     while(progress < 1){
@@ -728,7 +867,7 @@ void BagRecorder::lockAllWidgets(bool lock){
     ui_.load_config->setDisabled(lock);
     ui_.save_config->setDisabled(lock);
     ui_.load_set_button->setDisabled(lock);
-    ui_.export_set_bottun->setDisabled(lock);
+    ui_.export_set_button->setDisabled(lock);
 
     ui_.o_mx_size_toggle->setDisabled(lock);
     if(ui_.o_mx_size_toggle->checkState() == Qt::Checked)
@@ -747,6 +886,32 @@ void BagRecorder::lockAllWidgets(bool lock){
         ui_.o_compression_format_cbox->setDisabled(lock);
         ui_.o_compression_mode_cbox->setDisabled(lock);
     }
+
+    for(auto &pair : set_item_hash_){
+        pair.set_button->setDisabled(lock);
+    }
+}
+
+void BagRecorder::updateFreeSpace(){
+    qint64 free_bytes = q_storage_info_.bytesFree();
+    auto free_byte_string = toStringFileSize(free_bytes);
+    ui_.free_space_indicator->setText(QString::fromStdString(free_byte_string));
+
+    QColor label_backgorund_color;
+    QPalette palette = ui_.free_space_indicator->palette();
+
+    if(free_bytes > (qint64) 5000000000LL){
+        label_backgorund_color.setHsl(78, 128, 190, 255);
+    }
+    else if(free_bytes > (qint64) 1000000000LL){
+        label_backgorund_color.setHsl(42, 128, 190, 255);     
+    }
+    else{
+        label_backgorund_color.setHsl(0, 128, 190, 255);
+    }
+    palette.setColor(QPalette::Window, label_backgorund_color);
+    ui_.free_space_indicator->setAutoFillBackground(true);
+    ui_.free_space_indicator->setPalette(palette);
 }
 
 }
