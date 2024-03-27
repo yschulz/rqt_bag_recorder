@@ -48,6 +48,11 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     }
     context.addWidget(widget_);
 
+    free_space_timer_ = new QTimer(this);
+    free_space_timer_->setInterval(2000);
+
+    connect(free_space_timer_, SIGNAL(timeout()), this, SLOT(updateFreeSpace()));
+
     // setup topic bar
     updateTopicList();
     connect(ui_.refresh_topics_button, SIGNAL(pressed()), this, SLOT(updateTopicList()));
@@ -60,9 +65,18 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.topic_tree->setColumnCount(labels.size());
     ui_.topic_tree->setHeaderLabels(labels);
 
-    ui_.topic_tree->setColumnWidth(0, 80);
-    ui_.topic_tree->setColumnWidth(1, 160);
-    ui_.topic_tree->setColumnWidth(2, 350);
+
+    filter_proxy_  = new QSortFilterProxyModel(widget_);
+    filter_proxy_->setSourceModel(ui_.topic_tree->model());
+    filter_proxy_->setFilterKeyColumn(-1);
+    ui_.topic_tree_view->setModel(filter_proxy_);
+    ui_.topic_tree->hide();
+
+    ui_.topic_tree_view->setColumnWidth(0, 80);
+    ui_.topic_tree_view->setColumnWidth(1, 160);
+    ui_.topic_tree_view->setColumnWidth(2, 350);
+
+
 
     connect(ui_.o_format_cbox, SIGNAL(currentTextChanged(const QString &)), this, SLOT(onFormatChanged(const QString &)));
 
@@ -82,7 +96,6 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
     ui_.o_format_cbox->addItem(QString("mcap"));
     ui_.o_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText("sqlite3"));
 
-    ui_.o_compression_format_cbox->addItem(QString("Lz4"));
     ui_.o_compression_format_cbox->addItem(QString("Zstd"));
     ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_format_cbox->findText(""));
     ui_.o_compression_format_cbox->setDisabled(true);
@@ -122,6 +135,7 @@ void BagRecorder::initPlugin(qt_gui_cpp::PluginContext& context){
 
     connect(b_group_, SIGNAL(idClicked(int)), this, SLOT(onSetButtonClicked(int)));
 
+    connect(ui_.topic_filter, SIGNAL(textChanged(const QString &)), this, SLOT(onFilterTextChanged(const QString &)));
 }
 
 void BagRecorder::shutdownPlugin(){
@@ -134,6 +148,10 @@ void BagRecorder::saveSettings(qt_gui_cpp::Settings& /*plugin_settings*/, qt_gui
 
 void BagRecorder::restoreSettings(const qt_gui_cpp::Settings& /*plugin_settings*/, const qt_gui_cpp::Settings& /*instance_settings*/){
 
+}
+
+void BagRecorder::onFilterTextChanged(const QString &filter_text){
+    filter_proxy_->setFilterRegularExpression(filter_text);
 }
 
 void BagRecorder::onFormatChanged(const QString &text){
@@ -291,7 +309,7 @@ void BagRecorder::onToggleCompression(int state){
     case Qt::Checked:
         ui_.o_compression_format_cbox->setDisabled(false);
         ui_.o_compression_mode_cbox->setDisabled(false);
-        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText("Lz4"));
+        ui_.o_compression_format_cbox->setCurrentIndex(ui_.o_compression_format_cbox->findText("Zstd"));
         ui_.o_compression_mode_cbox->setCurrentIndex(ui_.o_compression_mode_cbox->findText("file"));
         break;
     case Qt::Unchecked:
@@ -307,11 +325,6 @@ void BagRecorder::onToggleCompression(int state){
 }
 
 void BagRecorder::onBagNameChanged(const QString &bag_name){
-    // if(base_output_folder_.isEmpty()){
-    //     QMessageBox::warning(widget_, "Base folder is empty!", "Please first define a base folder.");
-    //     return;
-    // }
-
     QDir full_dir(base_output_folder_);
     bag_name_ = bag_name;
 
@@ -335,6 +348,8 @@ void BagRecorder::onBagNameChanged(const QString &bag_name){
 
 void BagRecorder::onBasePathChanged(const QString &file_path){
     base_output_folder_ = file_path;
+    q_storage_info_ = QStorageInfo(QDir(base_output_folder_).root());
+    updateFreeSpace();
 }
 
 void BagRecorder::onSaveConfig(){
@@ -416,10 +431,7 @@ void BagRecorder::onSetOutput(){
 }
 
 void BagRecorder::updateCompressionOptions(){
-    if(ui_.o_compression_mode_cbox->currentText() == QString("Lz4")){
-        compression_options_.compression_format = "fake_comp";
-    }
-    else{
+    if(ui_.o_compression_mode_cbox->currentText() == QString("Zstd")){
         compression_options_.compression_format = "zstd";
     }
 
@@ -441,6 +453,7 @@ void BagRecorder::onRecord(){
     // first we evaluate what is happening while it is recording
     if(recording_){
         recording_ = false;
+        free_space_timer_->stop();
         onBagNameChanged(bag_name_);
         return;
     }
@@ -450,7 +463,7 @@ void BagRecorder::onRecord(){
         return;
     }
 
-    if(!QDir(base_output_folder_).mkpath(base_output_folder_)){
+    if(!QDir(base_output_folder_).mkpath(base_output_folder_) || !QDir(base_output_folder_).exists()){
         QString s;
         QTextStream ss(&s);
         ss << "Could not create base folder " << base_output_folder_ << ". Please change the folder.";
@@ -458,17 +471,12 @@ void BagRecorder::onRecord(){
         return;
     }
 
-    
-
     // At this point it is safe to record, lock all widgets and prepare
     lockAllWidgets(true);
     ui_.record_button->setText("Stop");
 
     // now go recording
     updateSubscribers();
-
-
-        QDir(base_output_folder_).mkpath(base_output_folder_);
 
     // give status update on topics
     QTreeWidgetItemIterator it(ui_.topic_tree);
@@ -500,6 +508,7 @@ void BagRecorder::onRecord(){
     
     writer_->open(storage_options_, converter_options_);
     recording_ = true;
+    free_space_timer_->start();
     emit sendRecordStatus(1);
 
     for(auto &topic_pair : n_msgs_received_){
@@ -837,6 +846,28 @@ void BagRecorder::lockAllWidgets(bool lock){
     for(auto &pair : set_item_hash_){
         pair.set_button->setDisabled(lock);
     }
+}
+
+void BagRecorder::updateFreeSpace(){
+    qint64 free_bytes = q_storage_info_.bytesFree();
+    auto free_byte_string = toStringFileSize(free_bytes);
+    ui_.free_space_indicator->setText(QString::fromStdString(free_byte_string));
+
+    QColor label_backgorund_color;
+    QPalette palette = ui_.free_space_indicator->palette();
+
+    if(free_bytes > (qint64) 5000000000LL){
+        label_backgorund_color.setHsl(78, 128, 190, 255);
+    }
+    else if(free_bytes > (qint64) 1000000000LL){
+        label_backgorund_color.setHsl(42, 128, 190, 255);     
+    }
+    else{
+        label_backgorund_color.setHsl(0, 128, 190, 255);
+    }
+    palette.setColor(QPalette::Window, label_backgorund_color);
+    ui_.free_space_indicator->setAutoFillBackground(true);
+    ui_.free_space_indicator->setPalette(palette);
 }
 
 }

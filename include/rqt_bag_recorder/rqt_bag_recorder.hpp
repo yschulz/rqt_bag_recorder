@@ -18,6 +18,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QButtonGroup>
+#include <QStorageInfo>
+#include <QSortFilterProxyModel>
 
 #include <future>
 
@@ -84,7 +86,12 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         void onBagSizeSpin(int value);
         void onBagLengthSpin(int value);
 
+        void onFilterTextChanged(const QString &filter_text);
+
+        void updateFreeSpace();
+
     private:
+        
         bool isFilePathValid(QString path);
         void addRowToTable(TableRow row);
         void genericTimerCallback(std::shared_ptr<rclcpp::SerializedMessage> msg, std::string topic, std::string type);
@@ -116,11 +123,14 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
         std::map<std::string, std::vector<std::string>> topic_info_;
         bool recording_;
         bool lock_recording_;
-        // std::string out_folder_path_;
+
         QString base_output_folder_;
         QString bag_name_;
 
         QHash<int, SetItem> set_item_hash_;
+
+        QStorageInfo q_storage_info_;
+        QTimer* free_space_timer_;
 
         QButtonGroup* b_group_;
         int total_set_items_ = 0;
@@ -130,6 +140,8 @@ class BagRecorder: public rqt_gui_cpp::Plugin{
 
         Ui::BagRecorderWidget ui_;
         QWidget* widget_;
+
+        QSortFilterProxyModel* filter_proxy_;
 };
 
 } // rqt_bag_recorder
